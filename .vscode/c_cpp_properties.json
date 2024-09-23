@@ -1,0 +1,21 @@
+{
+    "configurations": [
+        {
+            "name": "Linux",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "${workspaceFolder}/UEFIloader/edk2/MdePkg/Include",
+                "${workspaceFolder}/UEFIloader/edk2/MdePkg/Include/X64"
+            ],
+            "defines": [],
+            "compilerPath": "/usr/bin/gcc",
+            "cStandard": "c99",
+            "cppStandard": "gnu++14",
+            "intelliSenseMode": "linux-gcc-x64",
+            "compilerArgs": [
+                "/UEFIloader/edk2/MdePkg/Include"
+            ]
+        }
+    ],
+    "version": 4
+}
