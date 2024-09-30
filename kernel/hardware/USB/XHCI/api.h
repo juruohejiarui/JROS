@@ -239,6 +239,10 @@ void HW_USB_XHCI_writeCtx(void *ctx, int dwId, u32 mask, u32 val);
 
 u32 HW_USB_XHCI_readCtx(void *ctx, int dwId, u32 mask);
 
+inline __always_inline__ void *HW_USB_XHCI_getCtx(XHCI_Device *dev, int ctxId) {
+	return (void *)((u64)dev->inCtx + ctxId * dev->host->ctxSize);
+}
+
 u32 HW_USB_XHCI_EpCtx_readMxESITPay(XHCI_EpCtx *ep);
 
 void HW_USB_XHCI_EpCtx_writeMxESITPay(XHCI_EpCtx *ep, u32 val);

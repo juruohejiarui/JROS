@@ -88,10 +88,9 @@ void HW_USB_XHCI_init(PCIeManager *pci) {
 		return ;
 	}
 	if (HW_USB_XHCI_CapReg_hccParam(host, 1) & (1 << 2)) {
-		printk(RED, BLACK, "XHCI: %#018lx: invalid context size: 64 bits=8 bytes\n", host);
-		kfree(host, 0);
-		return ;
-	}
+		printk(WHITE, BLACK, "XHCI: %#018lx: context size=8 bytes\n", host);
+		host->ctxSize = 64;
+	} else host->ctxSize = 32;
 
 	// stop the host
 	HW_USB_XHCI_writeOpReg(host, XHCI_OpReg_cmd, HW_USB_XHCI_readOpReg(host, XHCI_OpReg_cmd) & ~1u);
@@ -443,16 +442,16 @@ void HW_USB_XHCI_devMgrTask(XHCI_Device *dev, u64 rootPort) {
 		HW_USB_XHCI_TRB_setSlot(&req0->trb[0], dev->slotId);
 		// set BSR bit
 		
-		dev->inCtx = kmalloc(0x800, Slab_Flag_Clear | Slab_Flag_Private, NULL);
+		dev->inCtx = kmalloc(0x1000, Slab_Flag_Clear | Slab_Flag_Private, NULL);
 		dev->inCtx->ctrl.addFlags = (1 << 0) | (1 << 1);
 		{
-			XHCI_SlotCtx *slot = &dev->inCtx->slot;
+			XHCI_SlotCtx *slot = HW_USB_XHCI_getCtx(dev, XHCI_InCtx_Slot);
 			HW_USB_XHCI_writeCtx(slot, 0, XHCI_SlotCtx_ctxEntries, 1);
 			HW_USB_XHCI_writeCtx(slot, 0, XHCI_SlotCtx_speed, speed);
 			HW_USB_XHCI_writeCtx(slot, 1, XHCI_SlotCtx_rootPortNum, rootPort);
 		}
 		{
-			XHCI_EpCtx *ep0 = &dev->inCtx->ep[0];
+			XHCI_EpCtx *ep0 = HW_USB_XHCI_getCtx(dev, XHCI_InCtx_CtrlEp);
 			HW_USB_XHCI_writeCtx(ep0, 1, XHCI_EpCtx_epType, XHCI_EpCtx_epType_Control);
 			HW_USB_XHCI_writeCtx(ep0, 1, XHCI_EpCtx_CErr, 3);
 			HW_USB_XHCI_writeCtx(ep0, 1, XHCI_EpCtx_mxPackSize, HW_USB_XHCI_EpCtx_getMxPackSize0(speed));
@@ -493,7 +492,7 @@ void HW_USB_XHCI_devMgrTask(XHCI_Device *dev, u64 rootPort) {
 	// the max packet size for control endpoint is not correct
 	if (val != HW_USB_XHCI_EpCtx_getMxPackSize0(speed))
 		// modify the control endpoint context and update evaluate context command to update
-		HW_USB_XHCI_writeCtx(&dev->inCtx->ep[0], 1, XHCI_EpCtx_mxPackSize, val);
+		HW_USB_XHCI_writeCtx(HW_USB_XHCI_getCtx(dev, XHCI_InCtx_CtrlEp), 1, XHCI_EpCtx_mxPackSize, val);
 	HW_USB_XHCI_TRB_setType(&req0->trb[0], XHCI_TRB_Type_EvalCtx);
 	HW_USB_XHCI_Ring_insReq(dev->host->cmdRing, req0);
 	if (HW_USB_XHCI_Req_ringDbWait(dev->host, 0, 0, 0, req0) != XHCI_TRB_CmplCode_Succ) {

@@ -128,10 +128,16 @@ typedef struct XHCI_EpCtx {
 #define XHCI_EpCtx_epType_BulkIn	6
 #define XHCI_EpCtx_epType_IntrIn	7
 
+// this structure can only apply to host which ctxSize=4
 typedef struct XHCI_DevCtx {
 	XHCI_SlotCtx slot;
 	XHCI_EpCtx ep[31];
 } __attribute__ ((packed)) XHCI_DevCtx;
+
+#define XHCI_InCtx_Ctrl		0
+#define XHCI_InCtx_Slot 	1
+#define XHCI_InCtx_CtrlEp	2
+#define XHCI_InCtx_Ep(x) 	(x + 2)
 
 typedef struct XHCI_InCtrlCtx {
 	u32 dropFlags;
@@ -143,6 +149,7 @@ typedef struct XHCI_InCtrlCtx {
 	#define XHCI_InCtrlCtx_AlterSet	0x00ff0000u
 } __attribute__ ((packed)) XHCI_InCtrlCtx;
 
+// this structure can only apply to host which ctxSize=4
 typedef struct XHCI_InputCtx {
 	XHCI_InCtrlCtx ctrl;
 	XHCI_SlotCtx slot;
@@ -317,6 +324,7 @@ typedef struct XHCI_Host {
 	PCIe_MSI_Descriptor *msiDesc;
 
 	XHCI_DevCtx **devCtx;
+	u64 ctxSize; // option : 4, 8
 	
 	TaskStruct **eveHandlerTask;
 

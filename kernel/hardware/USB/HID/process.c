@@ -211,11 +211,15 @@ void HW_USB_HID_process(XHCI_Device *dev) {
 		// only focus on interrupt in endpoint
 		if (epType == 0x7) {
 			if (dev->inCtx->ctrl.addFlags & (1 << (epId + 1))) continue;
-			XHCI_EpCtx *ep = &dev->inCtx->ep[epId];
+			XHCI_EpCtx *ep = HW_USB_XHCI_getCtx(dev, XHCI_InCtx_Ep(epId));
 			memset(ep, 0, sizeof(XHCI_EpCtx));
-
-			HW_USB_XHCI_writeCtx(&dev->inCtx->slot, 0, XHCI_SlotCtx_ctxEntries, 
-				max(HW_USB_XHCI_readCtx(&dev->inCtx->slot, 0, XHCI_SlotCtx_ctxEntries), epId + 1));
+			
+			{
+				XHCI_SlotCtx *slot = HW_USB_XHCI_getCtx(dev, XHCI_InCtx_Slot);
+				HW_USB_XHCI_writeCtx(slot, 0, XHCI_SlotCtx_ctxEntries, 
+						max(HW_USB_XHCI_readCtx(slot, 0, XHCI_SlotCtx_ctxEntries), epId + 1));
+			}
+			
 
 			HW_USB_XHCI_writeCtx(ep, 0, XHCI_EpCtx_interval,	epDesc->interval);
 			HW_USB_XHCI_writeCtx(ep, 1, XHCI_EpCtx_epType, 		epType);
