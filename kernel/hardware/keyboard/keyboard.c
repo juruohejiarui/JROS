@@ -29,7 +29,7 @@ static struct KeyboardBuffer {
 } *_buffer;
 
 static struct {
-	int ShiftL, ShiftR, CtrlL, CtrlR, AltL, AltR;
+	int ShiftL, ShiftR, CtrlL, CtrlR, AltL, AltR, SuperL, SuperR;
 } _mkeyStatus;
 
 IntrController _controller = {

@@ -273,6 +273,12 @@ static void _parseItem(u8 *raw, USB_HID_ReportItem *item, int *out) {
 	*out = data;
 }
 
+static void _parseItemByte(u8 *raw, USB_HID_ReportItem *item, u8 *out) {
+	int data = 0;
+	_parseItem(raw, item, &data);
+	*out = data;
+}
+
 void HW_USB_HID_parseReport(u8 *raw, USB_HID_ParseHelper *helper, USB_HID_Report *out) {
 	out->type = helper->type;
 	switch (helper->type) {
@@ -283,18 +289,10 @@ void HW_USB_HID_parseReport(u8 *raw, USB_HID_ParseHelper *helper, USB_HID_Report
 			_parseItem(raw, &helper->items.mouse.wheel, &out->items.mouse.wheel);
 			break;
 		case USB_HID_ReportHelper_Type_Keyboard:
-			_parseItem(raw, &helper->items.keyboard.spK, &out->items.keyboard.spK);
-			for (int i = 0; i < 6; i++) _parseItem(raw, &helper->items.keyboard.key[i], &out->items.keyboard.key[i]);
+			_parseItemByte(raw, &helper->items.keyboard.spK, &out->items.keyboard.spK);
+			for (int i = 0; i < 6; i++) _parseItemByte(raw, &helper->items.keyboard.key[i], &out->items.keyboard.key[i]);
 			break;
 	}
-}
-
-int HW_USB_HID_getIdleDuration(int repType) {
-	switch (repType) {
-		case USB_HID_ReportHelper_Type_Mouse : return 0x00;
-		case USB_HID_ReportHelper_Type_Keyboard : return 0x0;
-	}
-	return 0;
 }
 
 void HW_USB_HID_initParse() {

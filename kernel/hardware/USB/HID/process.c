@@ -141,7 +141,8 @@ void HW_USB_HID_processKeyboard(XHCI_Device *dev, XHCI_InterDesc *inter, USB_HID
 				rep->items.keyboard.spK, 
 				rep->items.keyboard.key[0], rep->items.keyboard.key[1], rep->items.keyboard.key[2],
 				rep->items.keyboard.key[3], rep->items.keyboard.key[4], rep->items.keyboard.key[5]);
-		Intr_SoftIrq_Timer_mdelay(inInterval);
+		// 
+		Intr_SoftIrq_Timer_mdelay(inInterval - 1);
 	}
 }
 

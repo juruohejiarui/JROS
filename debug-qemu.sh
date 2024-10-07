@@ -7,11 +7,8 @@ usbProduct=0x0cd1
 qemu-system-x86_64 \
 	-drive file="${ovmfPath}",if=pflash,format=raw,unit=0,readonly=on \
 	-machine type=q35 \
-	-cpu max \
 	-device qemu-xhci \
 	-net none \
-	-device pcie-root-port,bus=pcie.0,id=root_port \
 	-device usb-host,vendorid=${usbVendor},productid=${usbProduct},id=hostdev0 \
-	-m 2048M \
-	-device virtio-keyboard \
+	-m 512M \
 	-smp 2,cores=2	\

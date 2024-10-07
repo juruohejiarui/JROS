@@ -94,7 +94,7 @@ typedef struct USB_HID_ParseHelper {
 		struct {
 			USB_HID_ReportItem btn, x, y, wheel;
 		} touchpad;
-		union {
+		struct {
 			USB_HID_ReportItem spK, key[6];
 			USB_HID_ReportItem leds;
 		} keyboard;
@@ -108,7 +108,7 @@ typedef struct USB_HID_Report {
 	union {
 		struct { int btn, x, y, wheel; } mouse;
 		struct { int btn, x, y, wheel; } touchpad;
-		struct { int spK, key[6]; } keyboard;
+		struct { u8 spK, key[6]; } keyboard;
 	} items;
 } USB_HID_Report;
 
