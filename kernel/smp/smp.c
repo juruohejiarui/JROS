@@ -11,7 +11,7 @@ u32 _cpuApicId[Hardware_CPUNumber];
 
 SpinLock _lock;
 int SMP_cpuNum;
-u32 trIdxCnt;
+u32 trIdxCnt, SMP_bspIdx, _bspx2ApicId;
 Atomic SMP_task0LaunchNum;
 
 static u32 _cvtId(u32 x2apicID) {
@@ -34,8 +34,8 @@ u32 SMP_registerCPU(u32 x2apicID, u32 apicID) {
 	pkg->x2apicID = x2apicID;
 	pkg->apicID = apicID;
     SpinLock_unlock(&_lock);
-    // is BSP
-    if (SMP_cpuNum == 1) {
+    
+    if (x2apicID == _bspx2ApicId) {
         pkg->tssTable = tss64Table;
 		pkg->idtTblSize = 512 * 8;
 		pkg->idtTable = idtTable;
@@ -43,7 +43,7 @@ u32 SMP_registerCPU(u32 x2apicID, u32 apicID) {
 		SMP_maskIntr(0, 0, 0x40);
 		SMP_maskIntr(0, 0x80, 0x80);
 		// for each processor, there are 64 spare vectors for pci and other purposes. from 0x40 to 0x7f
-		
+		SMP_bspIdx = SMP_cpuNum - 1;
     } else {
 		u32 trIdx = trIdxCnt;
 		trIdxCnt += 2;
@@ -109,7 +109,7 @@ static int _parseMADT() {
 	#undef canEnable
 
 	printk(WHITE, BLACK, "SMP: processor num: %d\n", SMP_cpuNum);
-	for (int i = 0; i < SMP_cpuNum; i++) printk(WHITE, BLACK, "apic: %x, x2apic: %x\n", SMP_cpuInfo[i].apicID, SMP_cpuInfo[i].x2apicID);
+	for (int i = 0; i < SMP_cpuNum; i++) printk(WHITE, BLACK, "apic:%4x, x2apic:%4x\n", SMP_cpuInfo[i].apicID, SMP_cpuInfo[i].x2apicID);
 	// while (1) IO_hlt();
 	return 1;
 }
@@ -125,6 +125,15 @@ void SMP_init() {
 	SpinLock_init(&_lock);
 	SMP_cpuNum = 0;
     trIdxCnt = 12;
+
+	// is BSP
+	{
+		u32 a, b, c, d;
+    	HW_CPU_cpuid(0xb, 0, &a, &b, &c, &d);
+		_bspx2ApicId = d;
+		printk(WHITE, BLACK, "SMP: BSP x2APIC ID=%x\n", d);
+	}
+
 	// find the local processor list and register each of them.
 	int res = _parseMADT();
 	if (!res) { printk(RED, BLACK, "SMP: unable to get the processor map.\n"); return ; }
@@ -134,7 +143,7 @@ void SMP_init() {
     printk(WHITE, BLACK, "SMP: copy byte:%#010lx\n", (u64)&SMP_APUBootEnd - (u64)&SMP_APUBootStart);
     memcpy(SMP_APUBootStart, DMAS_phys2Virt(0x20000), (u64)&SMP_APUBootEnd - (u64)&SMP_APUBootStart);
 
-	for (int i = 1; i < SMP_cpuNum; i++) {
+	for (int i = 0; i < SMP_cpuNum; i++) if (i != SMP_bspIdx) {
 		APIC_ICRDescriptor icr;
 		*(u64 *)&icr = 0;
 		icr.vector = 0x00;
@@ -219,6 +228,7 @@ void SMP_sendIPI_allButSelf(u32 vector, void *msg) {
 
 u32 SMP_getCurCPUIndex() {
 	u32 a, b, c, d;
+	// this will return the x2apic ID of the current processor
     HW_CPU_cpuid(0xb, 0, &a, &b, &c, &d);
     return _cvtId(d);
 }
