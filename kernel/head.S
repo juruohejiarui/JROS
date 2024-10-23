@@ -44,12 +44,13 @@ setSMPInfo:
 setSMPInfo_LoopStart:
     cmpl (%rax), %edx
     jz setSMPInfo_LoopEnd
-    addq $604, %rax
+    addq $616, %rax
     jmp setSMPInfo_LoopStart
 setSMPInfo_LoopEnd:
-    movq 0x8(%rax), %rsi
+	// set stack pointer
+    movq 0x10(%rax), %rsi
 	// set idt pointer
-	lidt 0x22(%rax)
+	lidt 0x2E(%rax)
     addq $32768, %rsi
     movq %rsi, %rsp
 setSmpTmpStkEnd:

@@ -54,13 +54,13 @@ hardware/hardware.o : hardware/hardware.c includes/hardware.h hardware/cpu.h inc
 	@$(CC) $(CFLAGS) -c hardware/hardware.c -o hardware/hardware.o 
 	@echo "[CC] hardware/hardware.c" 
 
-hardware/keyboard/keyboard.o : hardware/keyboard/keyboard.c hardware/keyboard.h includes/lib.h includes/config.h lib/ds.h lib/memop.h lib/io.h lib/algorithm.h lib/spinlock.h lib/atomic.h lib/rbtree.h includes/memory.h memory/desc.h memory/DMAS.h memory/pgtable.h memory/buddy.h memory/SLAB.h includes/interrupt.h interrupt/gate.h interrupt/trap.h interrupt/interrupt.h interrupt/softirq.h interrupt/softirq/timer.h includes/log.h includes/linkage.h hardware/APIC.h hardware/keyboard/scancode.h 
-	@$(CC) $(CFLAGS) -c hardware/keyboard/keyboard.c -o hardware/keyboard/keyboard.o 
-	@echo "[CC] hardware/keyboard/keyboard.c" 
-
 hardware/keyboard/scancode.o : hardware/keyboard/scancode.c hardware/keyboard/scancode.h includes/lib.h includes/config.h lib/ds.h lib/memop.h lib/io.h lib/algorithm.h lib/spinlock.h lib/atomic.h lib/rbtree.h 
 	@$(CC) $(CFLAGS) -c hardware/keyboard/scancode.c -o hardware/keyboard/scancode.o 
 	@echo "[CC] hardware/keyboard/scancode.c" 
+
+hardware/keyboard/keyboard.o : hardware/keyboard/keyboard.c hardware/keyboard.h includes/lib.h includes/config.h lib/ds.h lib/memop.h lib/io.h lib/algorithm.h lib/spinlock.h lib/atomic.h lib/rbtree.h includes/memory.h memory/desc.h memory/DMAS.h memory/pgtable.h memory/buddy.h memory/SLAB.h includes/interrupt.h interrupt/gate.h interrupt/trap.h interrupt/interrupt.h interrupt/softirq.h interrupt/softirq/timer.h includes/log.h includes/linkage.h hardware/APIC.h hardware/keyboard/scancode.h 
+	@$(CC) $(CFLAGS) -c hardware/keyboard/keyboard.c -o hardware/keyboard/keyboard.o 
+	@echo "[CC] hardware/keyboard/keyboard.c" 
 
 hardware/timer/cmos.o : hardware/timer/cmos.c hardware/timer/cmos.h includes/lib.h includes/config.h lib/ds.h lib/memop.h lib/io.h lib/algorithm.h lib/spinlock.h lib/atomic.h lib/rbtree.h 
 	@$(CC) $(CFLAGS) -c hardware/timer/cmos.c -o hardware/timer/cmos.o 
@@ -173,10 +173,6 @@ smp/smpmain.o : smp/smpmain.c includes/smp.h includes/lib.h includes/config.h li
 	@$(CC) $(CFLAGS) -c smp/smpmain.c -o smp/smpmain.o 
 	@echo "[CC] smp/smpmain.c" 
 
-task/inittask.o : task/inittask.c task/desc.h includes/lib.h includes/config.h lib/ds.h lib/memop.h lib/io.h lib/algorithm.h lib/spinlock.h lib/atomic.h lib/rbtree.h includes/memory.h memory/desc.h memory/DMAS.h memory/pgtable.h memory/buddy.h memory/SLAB.h includes/interrupt.h interrupt/gate.h interrupt/trap.h interrupt/interrupt.h interrupt/softirq.h interrupt/softirq/timer.h includes/simd.h task/mgr.h includes/hardware.h hardware/cpu.h hardware/UEFI.h hardware/8259A.h hardware/APIC.h hardware/timer.h hardware/timer/cmos.h hardware/timer/hpet.h hardware/keyboard.h hardware/USB.h hardware/USB/glo.h hardware/PCIe.h hardware/device.h hardware/USB/UHCI.h hardware/USB/EHCI.h hardware/USB/XHCI.h hardware/USB/XHCI/desc.h includes/task.h task/syscall.h hardware/USB/XHCI/api.h includes/log.h includes/linkage.h includes/smp.h 
-	@$(CC) $(CFLAGS) -c task/inittask.c -o task/inittask.o 
-	@echo "[CC] task/inittask.c" 
-
 task/mgr.o : task/mgr.c task/mgr.h task/desc.h includes/lib.h includes/config.h lib/ds.h lib/memop.h lib/io.h lib/algorithm.h lib/spinlock.h lib/atomic.h lib/rbtree.h includes/memory.h memory/desc.h memory/DMAS.h memory/pgtable.h memory/buddy.h memory/SLAB.h includes/interrupt.h interrupt/gate.h interrupt/trap.h interrupt/interrupt.h interrupt/softirq.h interrupt/softirq/timer.h includes/simd.h includes/hardware.h hardware/cpu.h hardware/UEFI.h hardware/8259A.h hardware/APIC.h hardware/timer.h hardware/timer/cmos.h hardware/timer/hpet.h hardware/keyboard.h hardware/USB.h hardware/USB/glo.h hardware/PCIe.h hardware/device.h hardware/USB/UHCI.h hardware/USB/EHCI.h hardware/USB/XHCI.h hardware/USB/XHCI/desc.h includes/task.h task/syscall.h hardware/USB/XHCI/api.h includes/log.h includes/linkage.h includes/smp.h 
 	@$(CC) $(CFLAGS) -c task/mgr.c -o task/mgr.o 
 	@echo "[CC] task/mgr.c" 
@@ -190,4 +186,8 @@ task/syscall.o : task/syscall.c task/syscall.h includes/lib.h includes/config.h 
 	@$(CC) $(CFLAGS) -c task/syscall.c -o task/syscall.o 
 	@echo "[CC] task/syscall.c" 
 
-ALLOBJS = head.o hardware/8259A.o hardware/APIC.o hardware/PCIe/PCIe.o hardware/PCIe/desc.o hardware/UEFI.o hardware/USB/EHCI.o hardware/USB/HID/parse.o hardware/USB/HID/process.o hardware/USB/UHCI.o hardware/USB/XHCI/api.o hardware/USB/XHCI/process.o hardware/USB/glo.o hardware/cpu.o hardware/hardware.o hardware/keyboard/keyboard.o hardware/keyboard/scancode.o hardware/timer/cmos.o hardware/timer/hpet.o hardware/timer/timer.o interrupt/entry.o interrupt/gate.o interrupt/interrupt.o interrupt/softirq/softirq.o interrupt/softirq/timer.o interrupt/trap.o lib/algorithm.o lib/ds.o lib/io.o lib/memop.o lib/rbtree.o lib/spinlock.o log/printk.o main.o memory/DMAS.o memory/SLAB.o memory/buddy.o memory/initmm.o memory/pgtable.o simd/simd.o smp/APUboot.o smp/smp.o smp/smpmain.o task/inittask.o task/mgr.o task/switch.o task/syscall.o 
+task/inittask.o : task/inittask.c task/desc.h includes/lib.h includes/config.h lib/ds.h lib/memop.h lib/io.h lib/algorithm.h lib/spinlock.h lib/atomic.h lib/rbtree.h includes/memory.h memory/desc.h memory/DMAS.h memory/pgtable.h memory/buddy.h memory/SLAB.h includes/interrupt.h interrupt/gate.h interrupt/trap.h interrupt/interrupt.h interrupt/softirq.h interrupt/softirq/timer.h includes/simd.h task/mgr.h includes/hardware.h hardware/cpu.h hardware/UEFI.h hardware/8259A.h hardware/APIC.h hardware/timer.h hardware/timer/cmos.h hardware/timer/hpet.h hardware/keyboard.h hardware/USB.h hardware/USB/glo.h hardware/PCIe.h hardware/device.h hardware/USB/UHCI.h hardware/USB/EHCI.h hardware/USB/XHCI.h hardware/USB/XHCI/desc.h includes/task.h task/syscall.h hardware/USB/XHCI/api.h includes/log.h includes/linkage.h includes/smp.h 
+	@$(CC) $(CFLAGS) -c task/inittask.c -o task/inittask.o 
+	@echo "[CC] task/inittask.c" 
+
+ALLOBJS = head.o hardware/8259A.o hardware/APIC.o hardware/PCIe/PCIe.o hardware/PCIe/desc.o hardware/UEFI.o hardware/USB/EHCI.o hardware/USB/HID/parse.o hardware/USB/HID/process.o hardware/USB/UHCI.o hardware/USB/XHCI/api.o hardware/USB/XHCI/process.o hardware/USB/glo.o hardware/cpu.o hardware/hardware.o hardware/keyboard/scancode.o hardware/keyboard/keyboard.o hardware/timer/cmos.o hardware/timer/hpet.o hardware/timer/timer.o interrupt/entry.o interrupt/gate.o interrupt/interrupt.o interrupt/softirq/softirq.o interrupt/softirq/timer.o interrupt/trap.o lib/algorithm.o lib/ds.o lib/io.o lib/memop.o lib/rbtree.o lib/spinlock.o log/printk.o main.o memory/DMAS.o memory/SLAB.o memory/buddy.o memory/initmm.o memory/pgtable.o simd/simd.o smp/APUboot.o smp/smp.o smp/smpmain.o task/mgr.o task/switch.o task/syscall.o task/inittask.o 

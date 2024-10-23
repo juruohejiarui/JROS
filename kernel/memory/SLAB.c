@@ -185,6 +185,10 @@ void *kmalloc(u64 size, u64 arg, void (*destructor)(void *)) {
             if (slab->freeCnt > 0) break;
             slab = container(slab->listEle.next, Slab, listEle);
         } while (slab != Slab_kmallocCache[id].slabs);
+		// if this slab is not the first slab, then move it to the front
+		if (&slab->listEle != Slab_kmallocCache[id].slabs->listEle.next)
+			List_del(&slab->listEle),
+			List_insBehind(&slab->listEle, &Slab_kmallocCache[id].slabs->listEle);
     } else { // create a new slab
         Slab_pushNewSlab(id);
         slab = container(Slab_kmallocCache[id].slabs->listEle.next, Slab, listEle);
@@ -192,7 +196,7 @@ void *kmalloc(u64 size, u64 arg, void (*destructor)(void *)) {
 
     // find a free memory block
     for (u64 j = 0; j < slab->colCnt; j++) {
-        if (slab->colMap[j >> 6] == 0xfffffffffffffffful) {j += 63; continue; }
+        if (slab->colMap[j >> 6] == 0xfffffffffffffffful) {j += 64; continue; }
         if (Bit_get(slab->colMap + (j >> 6), j & 63) != 0) continue;
         Bit_set1(slab->colMap + (j >> 6), j & 63);
         slab->usingCnt++, slab->freeCnt--;

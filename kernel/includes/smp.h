@@ -12,7 +12,7 @@ typedef struct MADTDescriptor {
 	struct MADTEntry {
 		u8 type;
 		u8 length;
-		union MADTEntryContent{
+		union {
 			// processor local apic
 			struct MADTEntry_Type0 {
 				u8 processorID;
@@ -58,7 +58,7 @@ typedef struct MADTDescriptor {
 				u32 flags;
 				u32 apicID;
 			} __attribute__ ((packed)) type9;
-		} __attribute__ ((packed)) ct;
+		} __attribute__ ((packed));
 	} __attribute__ ((packed)) entries[0];
 } MADTDescriptor;
 
@@ -68,12 +68,14 @@ typedef struct MADTDescriptor {
 
 typedef struct SMP_CPUInfoPkg {
 	// the topo index of this processor
+	u32 x2apicID;
 	u32 apicID;
 	u32 trIdx;
+	u32 reserved1;
 	u64 *initStk;
 	TaskStruct *simdRegDomain;
 	u32 *tssTable;
-	u16 reserved;
+	u8 reserved2[6];
 	u16 idtTblSize;
 	IDTItem *idtTable;
 	u64 intrMsk[4];
