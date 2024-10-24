@@ -13,18 +13,18 @@ extern char* kallsyms_names __attribute__((weak));
 
 #define Init_taskStackSize 32768
 
-#define Task_Flag_Slaver		(1 << 0)
-#define Task_Flag_Kernel		(1 << 1)  
+#define Task_Flag_Slaver		(1ul << 0)
+#define Task_Flag_Kernel		(1ul << 1)  
 // this task use inner code of kernel
-#define Task_Flag_Inner			(1 << 2)
-#define Task_Flag_UseFloat  	(1 << 3)
-#define Task_Flag_InKillTree	(1 << 4)
+#define Task_Flag_Inner			(1ul << 2)
+#define Task_Flag_UseFloat  	(1ul << 3)
+#define Task_Flag_InKillTree	(1ul << 4)
+#define Task_Flag_NeedSchedule  (1ul << 5)
 
 
 #define Task_State_Uninterruptible  (1 << 0)
 #define Task_State_Running          (1 << 1)
-#define Task_State_NeedSchedule     (1 << 2)
-#define Task_State_Sleeping         (1 << 3)
+#define Task_State_Sleeping         (1 << 2)
 
 #define Task_userStackEnd       0x00007ffffffffff0ul
 #define Task_kernelStackEnd     0xfffffffffffffff0ul
@@ -94,7 +94,7 @@ typedef struct TaskStruct {
     TaskMemStruct *mem;
 	TSS *tss;
     u64 flags;
-    i64 vRunTime;
+    i64 vRunTime, resRunTime;
 	i32 pid, cpuId;
 	u64 signal, priority;
 
@@ -108,6 +108,7 @@ typedef struct TaskStruct {
 	u64 signalHandlerParam[Task_signalNum];
 
     SIMD_XsaveArea *simdRegs;
+	struct TaskStruct *dmasPtr;
 } __attribute__((packed)) TaskStruct; 
 
 union TaskUnion {

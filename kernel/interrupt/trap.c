@@ -56,8 +56,9 @@ static int _lookupKallsyms(u64 address, int level)
 		return 1;
 }
 
-void _backtrace(PtReg *regs)
-{
+SpinLock _backtraceLock;
+void _backtrace(PtReg *regs) {
+	SpinLock_lock(&_backtraceLock);
 	u64 *rbp = (u64 *)regs->rbp;
 	u64 ret_address = regs->rip;
 	int i = 0;
@@ -77,6 +78,7 @@ void _backtrace(PtReg *regs)
 		ret_address = *(rbp + 1);
 		rbp = (u64 *)*rbp;
 	}
+	SpinLock_unlock(&_backtraceLock);
 }
 
 void Intr_Trap_printRegs(u64 rsp) {
@@ -379,4 +381,6 @@ void Intr_Trap_setSysVec() {
 	Intr_Gate_setTrap(18, 2, machineCheck);
 	Intr_Gate_setTrap(19, 2, simdError);
 	Intr_Gate_setTrap(20, 2, virtualizationError);
+
+	SpinLock_init(&_backtraceLock);
 }

@@ -76,7 +76,11 @@ void Task_switchTo_inner(TaskStruct *prev, TaskStruct *next) {
 
 void Task_updateCurState() {
 	Task_current->vRunTime += _weight[Task_current->priority];
-	Task_current->state = Task_State_NeedSchedule;
+	Task_current->resRunTime -= _weight[Task_current->priority];
+	if (!Task_current->resRunTime) {
+		Task_current->flags |= Task_Flag_NeedSchedule;
+		Task_current->resRunTime = _weight[Task_current->priority] * max(1, 10 / Task_cfsStruct.taskNum[Task_current->cpuId].value);
+	}
 }
 
 void Task_updateAllProcessorState() {
@@ -93,7 +97,8 @@ static int _CFSTree_comparator(RBNode *a, RBNode *b) {
 
 
 void Task_schedule() {
-	if (!(SMP_current->flags & SMP_CPUInfo_flag_InTaskLoop) || Task_current->state != Task_State_NeedSchedule) return ;
+	if (!(SMP_current->flags & SMP_CPUInfo_flag_InTaskLoop) || !(Task_current->flags | Task_Flag_NeedSchedule)) return ;
+	Task_current->flags &= ~Task_Flag_NeedSchedule;
 	if (Task_current->signal) {
 		Task_current->state = Task_State_Running;
 		IO_sti();
@@ -114,7 +119,6 @@ void Task_schedule() {
 		IO_cli();
 		SIMD_setTS();
 		int cpuId = Task_current->cpuId;
-		SpinLock *lock = &Task_cfsStruct.lock[cpuId];
 		RBTree *cfsTree = &Task_cfsStruct.tree[cpuId]; 
 		// insert this task into the waiting tree
 		if (Task_current->priority == Task_Priority_Killed && !Task_cfsStruct.recycTskState.value) {
@@ -229,6 +233,8 @@ TaskStruct *Task_createTask(Task_Entry entry, void *arg1, u64 arg2, u64 flag) {
 	// contruct basic structures
 	TaskStruct *task = (TaskStruct *)DMAS_phys2Virt(tskStructPage->phyAddr);
     memset(task, 0, sizeof(TaskStruct) + sizeof(ThreadStruct) + sizeof(TaskMemStruct) + sizeof(TSS));
+
+	task->dmasPtr = task;
 	
 	// set the pointers of sub-structs
     ThreadStruct *thread = (ThreadStruct *)(task + 1);

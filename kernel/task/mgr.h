@@ -52,9 +52,7 @@ void Task_switch(TaskStruct *next);
 // the current task
 #define Task_current ((TaskStruct *)(Task_kernelStackEnd - Task_kernelStackSize))
 
-static __always_inline__ TaskStruct *Task_currentDMAS() {
-	return (TaskStruct *)DMAS_phys2Virt(MM_PageTable_getPldEntry(getCR3(), (u64)Task_current) & ~0xfff);
-}
+static __always_inline__ TaskStruct *Task_currentDMAS() { return Task_current->dmasPtr; }
 
 void Task_exit(int retVal);
 
