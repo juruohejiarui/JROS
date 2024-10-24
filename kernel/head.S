@@ -37,6 +37,8 @@ ENTRY(_start)
     jmp setSmpTmpStkEnd
 
 setSMPInfo:
+	// movq 0x7e00, %rsp
+	// callq testT
     movq $0xb, %rax
     xorq %rcx, %rcx
     cpuid

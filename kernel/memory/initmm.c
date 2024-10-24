@@ -18,9 +18,9 @@ static void _initArray() {
     memManageStruct.zonesLength = 0;
     for (int i = 0; i <= memManageStruct.e820Length; i++) {
         E820 *e820 = memManageStruct.e820 + i;
-		#ifdef DEBUG_MM
+		// #ifdef DEBUG_MM
 		printk(YELLOW, BLACK, "e820[%02d]: addr:%#018lx len:%#018lx type:%#018lx\n", i, e820->addr, e820->size, e820->type);
-		#endif
+		// #endif
         if (e820->type != 1) continue;
         u64 st = Page_4KUpAlign(e820->addr), ed = Page_4KDownAlign(e820->addr + e820->size);
         if (st >= ed) continue;

@@ -12,7 +12,7 @@ u32 _cpuApicId[Hardware_CPUNumber];
 SpinLock _lock;
 int SMP_cpuNum;
 u32 trIdxCnt, SMP_bspIdx, _bspx2ApicId;
-Atomic SMP_task0LaunchNum;
+Atomic SMP_task0LaunchNum, SMP_initCpuNum;
 
 static u32 _cvtId(u32 x2apicID) {
 	// SMP not enabled
@@ -125,6 +125,7 @@ void SMP_init() {
 	SpinLock_init(&_lock);
 	SMP_cpuNum = 0;
     trIdxCnt = 12;
+	SMP_initCpuNum.value = 0;
 
 	// is BSP
 	{
@@ -138,41 +139,40 @@ void SMP_init() {
 	int res = _parseMADT();
 	if (!res) { printk(RED, BLACK, "SMP: unable to get the processor map.\n"); return ; }
 	IO_sti();
-
+	printk(WHITE, BLACK, "SMP: BSP Idx=%d\n", SMP_bspIdx);
 
     printk(WHITE, BLACK, "SMP: copy byte:%#010lx\n", (u64)&SMP_APUBootEnd - (u64)&SMP_APUBootStart);
-    memcpy(SMP_APUBootStart, DMAS_phys2Virt(0x20000), (u64)&SMP_APUBootEnd - (u64)&SMP_APUBootStart);
+    memcpy(SMP_APUBootStart, DMAS_phys2Virt(0x8000), (u64)&SMP_APUBootEnd - (u64)&SMP_APUBootStart);
+
+	APIC_ICRDescriptor icr;
+	*(u64 *)&icr = 0;
+	icr.vector = 0x00;
+	icr.deliverMode = HW_APIC_DeliveryMode_INIT;
+	icr.destMode = HW_APIC_DestMode_Physical;
+	icr.deliverStatus = HW_APIC_DeliveryStatus_Idle;
+	icr.level = HW_APIC_Level_Assert;
+	icr.triggerMode = HW_APIC_TriggerMode_Edge;
+	icr.DestShorthand = HW_APIC_DestShorthand_AllExcludingSelf;
+	
+	IO_writeMSR(0x830, *(u64 *)&icr);
+	printk(WHITE, BLACK, "SMP: init-IPI (value=%#018lx) sent to all APs ...\n", *(u64 *)&icr);
+	// Intr_SoftIrq_Timer_mdelay(10);
 
 	for (int i = 0; i < SMP_cpuNum; i++) if (i != SMP_bspIdx) {
-		APIC_ICRDescriptor icr;
-		*(u64 *)&icr = 0;
-		icr.vector = 0x00;
-		icr.deliverMode = HW_APIC_DeliveryMode_INIT;
-		icr.destMode = HW_APIC_DestMode_Physical;
-		icr.deliverStatus = HW_APIC_DeliveryStatus_Pending;
-		icr.level = HW_APIC_Level_Assert;
-		icr.triggerMode = HW_APIC_TriggerMode_Edge;
-		icr.DestShorthand = HW_APIC_DestShorthand_None;
-		icr.dest.x2Apic = SMP_cpuInfo[i].x2apicID;
-		IO_writeMSR(0x830, *(u64 *)&icr);
-		printk(WHITE, BLACK, "SMP: init-IPI sent to %d ...", i); 
-		Intr_SoftIrq_Timer_mdelay(10);
-
-		icr.vector = 0x20;
+		u64 prev = SMP_initCpuNum.value;
+		icr.vector = 0x08;
 		icr.deliverMode = HW_APIC_DeliveryMode_Startup;
 		icr.DestShorthand = HW_APIC_DestShorthand_None;
-		icr.dest.x2Apic = SMP_cpuInfo[i].x2apicID;
-		
+		HW_APIC_ICRDescriptor_setDesc(&icr, SMP_cpuInfo[i].apicID, SMP_cpuInfo[i].x2apicID);
+		// icr.dest.x2Apic = SMP_cpuInfo[i].x2apicID;
+		printk(WHITE, BLACK, "SMP: startup-IPI (value=%#018lx) sent to %d (x2apicID=%x)...", *(u64 *)&icr, i, SMP_cpuInfo[i].x2apicID);
 		IO_writeMSR(0x830, *(u64 *)&icr);
-		Intr_SoftIrq_Timer_mdelay(10);
+		// // Intr_SoftIrq_Timer_mdelay(10);
 		IO_writeMSR(0x830, *(u64 *)&icr);
-
-		printk(WHITE, BLACK, "SMP: startup-IPI sent to %d ...", i);
-
-		while (!(SMP_cpuInfo[i].flags & SMP_CPUInfo_flag_APUInited))
+		while (SMP_initCpuNum.value == prev)
 			IO_hlt();
 		printk(WHITE, BLACK, "SMP: finish initalize CPU %d\r", i);
-		Intr_SoftIrq_Timer_mdelay(10);
+		// Intr_SoftIrq_Timer_mdelay(10);
 	}
 	printk(WHITE, BLACK, "\nSMP: startUp-IPI sent\n");
 	MM_PageTable_cleanTmpMap();

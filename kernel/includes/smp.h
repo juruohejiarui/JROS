@@ -93,7 +93,7 @@ extern u8 SMP_APUBootEnd[];
 
 extern SMP_CPUInfoPkg SMP_cpuInfo[Hardware_CPUNumber];
 extern int SMP_cpuNum;
-extern Atomic SMP_task0LaunchNum;
+extern Atomic SMP_task0LaunchNum, SMP_initCpuNum;
 
 #define SMP_current (SMP_getCPUInfoPkg(SMP_task0LaunchNum.value == SMP_cpuNum ? Task_current->cpuId : SMP_getCurCPUIndex()))
 

@@ -1,6 +1,7 @@
 #ifndef __HARDWARE_APIC_H__
 #define __HARDWARE_APIC_H__
 #include "../includes/lib.h"
+#include "../includes/memory.h"
 
 typedef struct {
 	u32 vector 			: 8; // 0-7
@@ -42,11 +43,13 @@ typedef struct APIC_ICRDescriptor {
 	union {
 		struct {
 			u32 reserved : 24;
-			u8 dest : 8;
-		} __attribute__ ((packed)) apic;
+			u8 apic : 8;
+		} __attribute__ ((packed));
 		u32 x2Apic;
 	} __attribute__ ((packed)) dest;
 } __attribute__ ((packed)) APIC_ICRDescriptor;
+
+void HW_APIC_ICRDescriptor_setDesc(APIC_ICRDescriptor *icr, u32 apicId, u32 x2apicId);
 
 // delivery mode
 #define HW_APIC_DeliveryMode_Fixed 			0x0
@@ -111,4 +114,19 @@ void HW_APIC_edgeAck(u8 irqId);
 void HW_APIC_init();
 
 int HW_APIC_finishedInit();
+
+extern u64 HW_APIC_supportFlag;
+
+#define HW_APIC_supportFlag_X2APIC (1ul << 0)
+
+static __always_inline__ void HW_APIC_writeICR(u64 value) {
+	__asm__ volatile (
+		"movl %2, (%3)		\n\t"
+		"movl %0, (%1)		\n\t"
+		:
+		: 	"a"((u32)(value & 0xffffffff)), "b"(DMAS_phys2Virt(0xfee00300)),
+			"c"((u32)((value >> 32) & 0xffffffffu)), "d"(DMAS_phys2Virt(0xfee00310))
+		: "memory"
+	);
+}
 #endif

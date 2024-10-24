@@ -2,6 +2,10 @@
 #include "../includes/simd.h"
 #include "../includes/log.h"
 
+void testT() {
+	printk(WHITE, BLACK, "curCPU=%d\n", SMP_getCurCPUIndex());
+}
+
 void startSMP() {
 	u64 rsp = 0;
 	SMP_CPUInfoPkg *pkg = SMP_current;
@@ -45,6 +49,8 @@ void startSMP() {
 	Intr_Gate_loadTR(pkg->trIdx);
 	IO_sti();
 	SMP_current->flags |= SMP_CPUInfo_flag_APUInited;
+	Atomic_inc(&SMP_initCpuNum);
+	// printk(WHITE, BLACK, "CPU %d inited\n", SMP_getCurCPUIndex());
 	Task_Syscall_init();
 
 	while (!Task_cfsStruct.flags) ;

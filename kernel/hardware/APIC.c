@@ -12,6 +12,14 @@ struct APIC_IOAddrMap {
     u32 *virtEOIAddr;
 } APIC_ioMap;
 
+u64 HW_APIC_supportFlag;
+
+void HW_APIC_ICRDescriptor_setDesc(APIC_ICRDescriptor *icr, u32 apicId, u32 x2apicId) {
+	if (HW_APIC_supportFlag & HW_APIC_supportFlag_X2APIC)
+		icr->dest.x2Apic = x2apicId;
+	else icr->dest.apic = apicId;
+}
+
 u64 Hardware_APIC_getReg_IA32_APIC_BASE() { return IO_readMSR(0x1b); }
 
 void HW_APIC_setReg_IA32_APIC_BASE(u64 value) { IO_writeMSR(0x1b, value); }
@@ -19,6 +27,7 @@ void APIC_setReg_IA32_APIC_BASE_address(u64 phyAddr) {
     HW_APIC_setReg_IA32_APIC_BASE(phyAddr | Hardware_APIC_getReg_IA32_APIC_BASE() & ((1ul << 12) - 1)); 
 }
 void APIC_initLocal() {
+	HW_APIC_supportFlag = 0;
     printk(RED, BLACK, "APIC_initLocal()\n");
     apicRegPage = (Page *)MM_Buddy_alloc(0, Page_Flag_Kernel | Page_Flag_KernelShare);
     memset(DMAS_phys2Virt(apicRegPage->phyAddr), 0, Page_4KSize);
@@ -31,8 +40,8 @@ void APIC_initLocal() {
     if ((1 << 9) & edx) printk(WHITE, BLACK, "HW support for APIC & xAPIC\n");
     else printk(WHITE, BLACK, "No HW support for APIC & xAPIC\n");
     // check the support of x2APIC
-    if ((1 << 21) & ecx) printk(WHITE, BLACK, "HW support for x2APIC\n");
-    else printk(WHITE, BLACK, "No HW support for x2APIC\n");
+    if ((1 << 21) & ecx) printk(WHITE, BLACK, "HW support for x2APIC\n"), HW_APIC_supportFlag |= HW_APIC_supportFlag_X2APIC;
+    else printk(WHITE, BLACK, "No HW support for x2APIC\n"), HW_APIC_supportFlag &= ~HW_APIC_supportFlag_X2APIC;
 
     // enable xAPIC & x2APIC
     u32 x, y;
