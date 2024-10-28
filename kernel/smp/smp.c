@@ -108,8 +108,23 @@ static int _parseMADT() {
 	}
 	#undef canEnable
 
+	// sort the CPU by x2apic ID, bubble sort is enough
+	for (int i = 0; i < SMP_cpuNum; i++) {
+		int fl = 1;
+		for (int j = 1; j < SMP_cpuNum - i; j++)
+			if (SMP_cpuInfo[j - 1].x2apicID > SMP_cpuInfo[j].x2apicID) {
+				SMP_CPUInfoPkg tmp = SMP_cpuInfo[j - 1];
+				SMP_cpuInfo[j - 1] = SMP_cpuInfo[j];
+				SMP_cpuInfo[j] = tmp;
+				fl = 0;
+			}
+		if (fl) break;
+	}
+
+
 	printk(WHITE, BLACK, "SMP: processor num: %d\n", SMP_cpuNum);
-	for (int i = 0; i < SMP_cpuNum; i++) printk(WHITE, BLACK, "apic:%4x, x2apic:%4x\n", SMP_cpuInfo[i].apicID, SMP_cpuInfo[i].x2apicID);
+	for (int i = 0; i < SMP_cpuNum; i++) printk(WHITE, BLACK, "CPU %d: apic:%4x x2apic:%4x\n", i, SMP_cpuInfo[i].apicID, SMP_cpuInfo[i].x2apicID);
+	// while (1) IO_hlt();
 	return 1;
 }
 
@@ -152,26 +167,26 @@ void SMP_init() {
 	icr.triggerMode = HW_APIC_TriggerMode_Edge;
 	icr.DestShorthand = HW_APIC_DestShorthand_AllExcludingSelf;
 	
-	IO_writeMSR(0x830, *(u64 *)&icr);
+	HW_APIC_writeICR(*(u64 *)&icr);
+	// IO_writeMSR(0x830, *(u64 *)&icr);
 	printk(WHITE, BLACK, "SMP: init-IPI (value=%#018lx) sent to all APs ...\n", *(u64 *)&icr);
-
+	u64 st = HW_Timer_HPET_jiffies();
 	for (int i = 0; i < SMP_cpuNum; i++) if (i != SMP_bspIdx) {
 		u64 prev = SMP_initCpuNum.value;
 		icr.vector = 0x08;
 		icr.deliverMode = HW_APIC_DeliveryMode_Startup;
 		icr.DestShorthand = HW_APIC_DestShorthand_None;
 		HW_APIC_ICRDescriptor_setDesc(&icr, SMP_cpuInfo[i].apicID, SMP_cpuInfo[i].x2apicID);
-		// icr.dest.x2Apic = SMP_cpuInfo[i].x2apicID;
-		printk(WHITE, BLACK, "SMP: startup-IPI (value=%#018lx) sent to %d (x2apicID=%x)...", *(u64 *)&icr, i, SMP_cpuInfo[i].x2apicID);
-		IO_writeMSR(0x830, *(u64 *)&icr);
-		// // Intr_SoftIrq_Timer_mdelay(10);
-		IO_writeMSR(0x830, *(u64 *)&icr);
-		while (SMP_initCpuNum.value == prev)
+		HW_APIC_writeICR(*(u64 *)&icr);
+		HW_APIC_writeICR(*(u64 *)&icr);
+		
+		while (SMP_initCpuNum.value == prev) {
+			printk(WHITE, BLACK, "waiting...(%d s)\r", (HW_Timer_HPET_jiffies() - st) / 1000);
 			IO_hlt();
-		printk(WHITE, BLACK, "SMP: finish initalize CPU %d\r", i);
+		}
+		printk(WHITE, BLACK, "SMP: finish initalize CPU %d\n", i);
 		// Intr_SoftIrq_Timer_mdelay(10);
 	}
-	printk(WHITE, BLACK, "\nSMP: startUp-IPI sent\n");
 	MM_PageTable_cleanTmpMap();
 	Intr_register(0xc8, NULL, SMP_irq0xc8Handler, 0, NULL, "SMP IPI 0xc8");
 }
@@ -186,8 +201,8 @@ void SMP_sendIPI(int cpuId, u32 vector, void *msg) {
 	icr.destMode = HW_APIC_DestMode_Physical;
 	icr.triggerMode = HW_APIC_TriggerMode_Edge;
 	icr.DestShorthand = HW_APIC_DestShorthand_None;
-	icr.dest.x2Apic = SMP_cpuInfo[cpuId].apicID;
-	IO_writeMSR(0x830, *(u64 *)&icr);
+	HW_APIC_ICRDescriptor_setDesc(&icr, SMP_cpuInfo[cpuId].apicID, SMP_cpuInfo[cpuId].x2apicID);
+	HW_APIC_writeICR(*(u64 *)&icr);
 }
 
 void SMP_sendIPI_all(u32 vector, void *msg) {
@@ -201,7 +216,7 @@ void SMP_sendIPI_all(u32 vector, void *msg) {
 	icr.destMode = HW_APIC_DestMode_Physical;
 	icr.triggerMode = HW_APIC_TriggerMode_Edge;
 	icr.DestShorthand = HW_APIC_DestShorthand_AllIncludingSelf;
-	IO_writeMSR(0x830, *(u64 *)&icr);
+	HW_APIC_writeICR(*(u64 *)&icr);
 }
 void SMP_sendIPI_self(u32 vector, void *msg) {
 	SMP_sendIPI(SMP_getCurCPUIndex(), vector, msg);
@@ -220,7 +235,7 @@ void SMP_sendIPI_allButSelf(u32 vector, void *msg) {
 	icr.destMode = HW_APIC_DestMode_Physical;
 	icr.triggerMode = HW_APIC_TriggerMode_Edge;
 	icr.DestShorthand = HW_APIC_DestShorthand_AllExcludingSelf;
-	IO_writeMSR(0x830, *(u64 *)&icr);
+	HW_APIC_writeICR(*(u64 *)&icr);
 }
 
 u32 SMP_getCurCPUIndex() {

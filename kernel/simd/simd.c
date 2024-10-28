@@ -26,12 +26,15 @@ void SIMD_enable() {
 	if (!(c & (1u << 28))) { printk(RED, BLACK, "SIMD: no AVX support.\n"); while (1) IO_hlt(); return ; }
 	// set Monitor Coprocessor flag (bit 1) and Numeric Error flag (bit 5) of cr0
 	u64 cr0 = IO_getCR(0);
-	IO_setCR(0, cr0 | (1ul << 1) | (1ul << 5) | (1ul << 16));
+	cr0 |= (1ul << 1) | (1ul << 5) | (1ul << 16);
+	cr0 &= ~(1ul << 2);
+	IO_setCR(0, cr0);
 	// printk(WHITE, BLACK, "SIMD: cr0:%#018lx\n", IO_getCR(0));
 	// enable xsave and avx
 	u64 cr4 = IO_getCR(4), xcr0 = 0;
+	cr4 |= (1 << 9) | (1 << 10) | (1 << 18);
     // set bit 18 of cr4 to enable xsave
-    IO_setCR(4, cr4 | 0x40668);
+    IO_setCR(4, cr4);
 	// printk(WHITE, BLACK, "SIMD: cr4:%#018lx\n", IO_getCR(4));
 
 	HW_CPU_cpuid(0x0d, 0x00, &a, &b, &c, &d);

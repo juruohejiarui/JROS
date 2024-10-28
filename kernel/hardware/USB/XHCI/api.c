@@ -21,7 +21,6 @@ u16 HW_USB_XHCI_readWord(u64 addr) {
 }
 
 u8 HW_USB_XHCI_readByte(u64 addr) {
-	printk(WHITE, BLACK, "addr:%#018lx,%#018lx\n", addr, addr & ~0x3ul);
 	register u32 data = HW_USB_XHCI_readDword(addr & ~0x3ul);
 	return (data >> ((addr & 0x3) << 3)) & 0xff;
 }

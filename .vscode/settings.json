@@ -13,6 +13,7 @@
 		"hardware.h": "c",
 		"timer.h": "c",
 		"uefi.h": "c",
-		"random": "c"
+		"random": "c",
+		"*.tcc": "c"
 	}
 }

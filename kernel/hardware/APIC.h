@@ -99,6 +99,7 @@ u64 Hardware_APIC_getReg_IA32_APIC_BASE();
 void HW_APIC_setReg_IA32_APIC_BASE(u64 value);
 
 void HW_APIC_writeRTE(u8 index, u64 val);
+void HW_APIC_writeICR(u64 val);
 
 void HW_APIC_suspend();
 void HW_APIC_resume();
@@ -117,16 +118,7 @@ int HW_APIC_finishedInit();
 
 extern u64 HW_APIC_supportFlag;
 
-#define HW_APIC_supportFlag_X2APIC (1ul << 0)
+#define HW_APIC_supportFlag_X2APIC			(1ul << 0)
+#define HW_APIC_supportFlag_EOIBroadcase	(1ul << 1)
 
-static __always_inline__ void HW_APIC_writeICR(u64 value) {
-	__asm__ volatile (
-		"movl %2, (%3)		\n\t"
-		"movl %0, (%1)		\n\t"
-		:
-		: 	"a"((u32)(value & 0xffffffff)), "b"(DMAS_phys2Virt(0xfee00300)),
-			"c"((u32)((value >> 32) & 0xffffffffu)), "d"(DMAS_phys2Virt(0xfee00310))
-		: "memory"
-	);
-}
 #endif
