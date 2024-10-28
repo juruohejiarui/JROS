@@ -66,7 +66,11 @@ void HW_USB_XHCI_init(PCIeManager *pci) {
 		*(u32 *)((u64)pci->cfg + 0xd0) = 0xffffffff;
 	}
 	host->pci = pci;
-	host->capRegAddr = (u64)DMAS_phys2Virt((pci->cfg->type.type0.bar[0] | (((u64)pci->cfg->type.type0.bar[1]) << 32)) & ~0xffful);
+	{
+		u64 phyAddr = (pci->cfg->type.type0.bar[0] | (((u64)pci->cfg->type.type0.bar[1]) << 32)) & ~0xful;
+		host->capRegAddr = (u64)DMAS_phys2Virt(phyAddr);
+		if (phyAddr >= MM_DMAS_bsSize) MM_PageTable_map2M(getCR3(), host->capRegAddr, phyAddr, MM_PageTable_Flag_Presented);
+	}
 	host->opRegAddr = host->capRegAddr + HW_USB_XHCI_CapReg_capLen(host);
 	host->rtRegAddr = host->capRegAddr + HW_USB_XHCI_CapReg_rtsOff(host);
 	host->dbRegAddr = host->capRegAddr + HW_USB_XHCI_CapReg_dbOffset(host);
@@ -77,7 +81,7 @@ void HW_USB_XHCI_init(PCIeManager *pci) {
 		host->msiCapDesc, host->msixCapDesc);
 
 	// check if the host controller support neccessary feature
-	if (!(HW_USB_XHCI_readOpReg(host, XHCI_OpReg_pgSize) & 0x1)) {
+	if (HW_USB_XHCI_readOpReg(host, XHCI_OpReg_pgSize) != 0x1) {
 		printk(RED, BLACK, "XHCI: %#018lx: no support for 4K page\n", host);
 		kfree(host, 0);
 		return ;

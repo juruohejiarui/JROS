@@ -8,6 +8,7 @@
 ENTRY(SMP_APUBootStart)
 
 SMP_APUBootBase = .
+TMP:
 	cli
 	wbinvd
 

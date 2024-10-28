@@ -110,7 +110,6 @@ static int _parseMADT() {
 
 	printk(WHITE, BLACK, "SMP: processor num: %d\n", SMP_cpuNum);
 	for (int i = 0; i < SMP_cpuNum; i++) printk(WHITE, BLACK, "apic:%4x, x2apic:%4x\n", SMP_cpuInfo[i].apicID, SMP_cpuInfo[i].x2apicID);
-	// while (1) IO_hlt();
 	return 1;
 }
 
@@ -134,12 +133,11 @@ void SMP_init() {
 		_bspx2ApicId = d;
 		printk(WHITE, BLACK, "SMP: BSP x2APIC ID=%x\n", d);
 	}
-
 	// find the local processor list and register each of them.
 	int res = _parseMADT();
 	if (!res) { printk(RED, BLACK, "SMP: unable to get the processor map.\n"); return ; }
-	IO_sti();
 	printk(WHITE, BLACK, "SMP: BSP Idx=%d\n", SMP_bspIdx);
+	IO_sti();
 
     printk(WHITE, BLACK, "SMP: copy byte:%#010lx\n", (u64)&SMP_APUBootEnd - (u64)&SMP_APUBootStart);
     memcpy(SMP_APUBootStart, DMAS_phys2Virt(0x8000), (u64)&SMP_APUBootEnd - (u64)&SMP_APUBootStart);
@@ -156,7 +154,6 @@ void SMP_init() {
 	
 	IO_writeMSR(0x830, *(u64 *)&icr);
 	printk(WHITE, BLACK, "SMP: init-IPI (value=%#018lx) sent to all APs ...\n", *(u64 *)&icr);
-	// Intr_SoftIrq_Timer_mdelay(10);
 
 	for (int i = 0; i < SMP_cpuNum; i++) if (i != SMP_bspIdx) {
 		u64 prev = SMP_initCpuNum.value;

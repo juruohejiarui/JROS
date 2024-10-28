@@ -60,17 +60,17 @@ void HW_Timer_HPET_init() {
 		printk(RED, BLACK, "HPET not found\n");
 		while (1) IO_hlt();
 	} else {
-		printk(WHITE, BLACK, "HPET found at %#018lx, addres: %#018lx\n", _hpetDesc, _hpetDesc->address.Address);
+		printk(WHITE, BLACK, "HPET found at %#018lx, address: %#018lx\n", _hpetDesc, _hpetDesc->address.Address);
 	}
 
-	IO_out32(0xcf8, 0x8000f8f0);
-	u32 x = IO_in32(0xcfc) & 0xffffc000;
-	if (x > 0xfec00000 && x < 0xfee00000) {
-		printk(RED, WHITE, "x = %#010x\n", x);
-		u32 *p = (u32 *)DMAS_phys2Virt(x + 0x3404ul);
-		*p = 0x80;
-		IO_mfence();
-	} else printk(WHITE, BLACK, "No need to set enable register (x = %#010x)\n", x);
+	// IO_out32(0xcf8, 0x8000f8f0);
+	// u32 x = IO_in32(0xcfc) & 0xffffc000;
+	// if (x > 0xfec00000 && x < 0xfee00000) {
+	// 	printk(RED, WHITE, "x = %#010x\n", x);
+	// 	u32 *p = (u32 *)DMAS_phys2Virt(x + 0x3404ul);
+	// 	*p = 0x80;
+	// 	IO_mfence();
+	// } else printk(WHITE, BLACK, "No need to set enable register (x = %#010x)\n", x);
 	
 	// initialize controller
 	_intrCotroller.install = HW_APIC_install;
@@ -107,12 +107,15 @@ void HW_Timer_HPET_init() {
 	// get min tick
 	_minTick = (cReg >> 32) & ((1ul << 32) - 1);
 	printk(WHITE, BLACK, " minTick=%d\n", _minTick);
+	*(u64 *)(DMAS_phys2Virt(_hpetDesc->address.Address) + 0x10) = 0x0;
+
 	_setTimerConfig(0, 0x40000004c);
 	// set it to 0.5 ms
 	_setTimerComparator(0, (u32)(0.5 * 1e12 / _minTick + 1));
+	
 	*(u64 *)(DMAS_phys2Virt(_hpetDesc->address.Address) + 0xf0) = 0x0;
 	IO_mfence();
-	*(u64 *)(DMAS_phys2Virt(_hpetDesc->address.Address) + 0x20) = 0;
+	*(u64 *)(DMAS_phys2Virt(_hpetDesc->address.Address) + 0x20) = 0xffffffff;
 	IO_mfence();
 	*(u64 *)(DMAS_phys2Virt(_hpetDesc->address.Address) + 0x10) = 0x3;
 	IO_mfence();

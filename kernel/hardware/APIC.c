@@ -104,6 +104,25 @@ void APIC_initLocal() {
     *(u64 *)DMAS_phys2Virt(0xfee002f0) = 0x100000;
     for (u64 i = 0x320; i <= 0x370; i += 0x10) *(u64 *)DMAS_phys2Virt(0xfee00000 + i) = 0x100000;
     
+    // __asm__ volatile(  "movq 	$0x82f,	%%rcx	\n\t"	// CMCI
+    //                            "wrmsr	\n\t"
+    //                            "movq   $0x832, %%rcx   \n\t"   //Timer
+    //                            "wrmsr  \n\t"
+    //                            "movq   $0x833, %%rcx   \n\t"   //Thermal Monitor
+    //                            "wrmsr  \n\t"
+    //                            "movq   $0x834, %%rcx   \n\t"   //Performance Counter
+    //                            "wrmsr  \n\t"
+    //                            "movq   $0x835, %%rcx   \n\t"   //LINT0
+    //                            "wrmsr  \n\t"
+    //                            "movq   $0x836, %%rcx   \n\t"   //LINT1
+    //                            "wrmsr  \n\t"
+    //                            "movq   $0x837, %%rcx   \n\t"   //Error
+    //                            "wrmsr  \n\t"
+    //                            :
+    //                            :"a"(0x10000),"d"(0x00)
+    //                            :"memory");
+
+	// printk(GREEN,BLACK,"Mask ALL LVT\n");
     // get TPR
     __asm__ volatile (
         "movq $0x808, %%rcx           \n\t"
