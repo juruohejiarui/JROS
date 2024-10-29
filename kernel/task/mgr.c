@@ -74,12 +74,17 @@ void Task_switchTo_inner(TaskStruct *prev, TaskStruct *next) {
     __asm__ volatile ( "movq %0, %%gs \n\t" : : "a"(next->thread->gs));
 }
 
+void Task_releaseProcessor() {
+	Task_current->flags |= Task_Flag_NeedSchedule;
+	SMP_sendIPI_self(SMP_IPI_Type_Schedule, NULL);
+}
+
 void Task_updateCurState() {
 	Task_current->vRunTime += _weight[Task_current->priority];
 	Task_current->resRunTime -= _weight[Task_current->priority];
 	if (!Task_current->resRunTime) {
 		Task_current->flags |= Task_Flag_NeedSchedule;
-		Task_current->resRunTime = _weight[Task_current->priority] * max(1, 10 / Task_cfsStruct.taskNum[Task_current->cpuId].value);
+		Task_current->resRunTime = _weight[Task_current->priority] * max(1, 20 / Task_cfsStruct.taskNum[Task_current->cpuId].value);
 	}
 }
 

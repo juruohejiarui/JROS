@@ -69,7 +69,7 @@ void APIC_initLocal() {
 		if (HW_APIC_supportFlag & HW_APIC_supportFlag_EOIBroadcase) Bit_set1(&val, 12);
 		IO_writeMSR(0x80f, val);
 		if (0x100 & x) printk(WHITE, BLACK, "SVR[8] enabled\n");
-		if (0x1000 &x) printk(WHITE, BLACK, "SVR[12] enabled\n");
+		if (0x1000 & x) printk(WHITE, BLACK, "SVR[12] enabled\n");
 
 		// get local APIC ID
 		__asm__ volatile (
@@ -90,8 +90,8 @@ void APIC_initLocal() {
 			: "memory"
 		);
 		 printk(WHITE, BLACK, 
-				"Local APIC Version: %d, Max LVT Entry: %#010x, SVR(Suppress EOI Broadcast): %#04x\n", 
-				x & 0xff, ((x >> 16) & 0xff) + 1, (x >> 24) & 0x1);
+				"Local APIC Version: %d, Max LVT Entry: %#010x\n", 
+				x & 0xff, ((x >> 16) & 0xff) + 1);
 		if ((x % 0xff) < 0x10)
 			printk(WHITE, BLACK, "82489DX discrete APIC\n");
 		else if (((x & 0xff) >= 0x10) && ((x & 0xff) < 0x20))

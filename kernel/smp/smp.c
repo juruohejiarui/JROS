@@ -219,7 +219,16 @@ void SMP_sendIPI_all(u32 vector, void *msg) {
 	HW_APIC_writeICR(*(u64 *)&icr);
 }
 void SMP_sendIPI_self(u32 vector, void *msg) {
-	SMP_sendIPI(SMP_getCurCPUIndex(), vector, msg);
+	SMP_current->ipiMsg = msg;
+	APIC_ICRDescriptor icr;
+	*(u64 *)&icr = 0;
+	icr.vector = vector;
+	icr.level = HW_APIC_Level_Assert;
+	icr.deliverMode = HW_APIC_DeliveryMode_Fixed;
+	icr.destMode = HW_APIC_DestMode_Physical;
+	icr.triggerMode = HW_APIC_TriggerMode_Edge;
+	icr.DestShorthand = HW_APIC_DestShorthand_Self;
+	HW_APIC_writeICR(*(u64 *)&icr);
 }
 
 void SMP_sendIPI_allButSelf(u32 vector, void *msg) {

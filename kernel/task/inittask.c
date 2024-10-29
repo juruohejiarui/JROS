@@ -15,7 +15,7 @@ void Task_keyboardEvent(void *arg1, u64 arg2) {
 	printk(WHITE, BLACK, "Keyboard Event monitor is running...\n");
 	for (KeyboardEvent *kpEvent; ; ) {
 		kpEvent = HW_Keyboard_getEvent();
-		if (kpEvent == NULL) continue;
+		if (kpEvent == NULL) { Task_releaseProcessor(); continue; }
 		if (kpEvent->isCtrlKey) {
 			if (!kpEvent->isKeyUp) printk(BLACK, YELLOW, "{%d}", kpEvent->keyCode);
 			else printk(BLACK, RED, "{%d}", kpEvent->keyCode);

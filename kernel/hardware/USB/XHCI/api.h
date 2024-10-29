@@ -22,6 +22,7 @@ u16 HW_USB_XHCI_readWord(u64 addr);
 u8 HW_USB_XHCI_readByte(u64 addr);
 
 void HW_USB_XHCI_writeQuad(u64 addr, u64 val);
+
 static __always_inline__ void HW_USB_XHCI_writeDword(u64 addr, u32 val) {
 	__asm__ volatile (
 		"movl %0, (%1)		\n\t"
@@ -183,6 +184,9 @@ static __always_inline__ void HW_USB_XHCI_writeDbReg(XHCI_Host *host, u32 slotId
 	((HW_USB_XHCI_CapReg_hcsParam(host, 1) >> 8) & ((1 << 11) - 1))
 #define HW_USB_XHCI_maxPort(host) \
 	((HW_USB_XHCI_CapReg_hcsParam(host, 1) >> 24) & ((1 << 8) - 1))
+// the maximum value of event ring segment table size
+#define HW_USB_XHCI_maxERST(host) \
+	(1u << ((HW_USB_XHCI_CapReg_hcsParam(host, 2) >> 4) & 0xf))
 // get max scratchpad buffer size 
 u32 HW_USB_XHCI_maxScrSz(XHCI_Host *host);
 

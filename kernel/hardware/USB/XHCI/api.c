@@ -12,7 +12,15 @@ XHCI_DescHdr *HW_USB_XHCI_Desc_nxtCfgItem(XHCI_CfgDesc *cfg, XHCI_DescHdr *cur) 
 }
 
 u64 HW_USB_XHCI_readQuad(u64 addr) {
-	return HW_USB_XHCI_readDword(addr) | (((u64)HW_USB_XHCI_readDword(addr + 0x4)) << 32);
+	u64 val;
+	__asm__ volatile (
+		"movq (%%rax), %%rbx\n\t"
+		"mfence				\n\t"
+		: "=b"(val)
+		: "a"(addr)
+		: "memory"
+	);
+	return val;
 }
 
 u16 HW_USB_XHCI_readWord(u64 addr) {
@@ -26,8 +34,13 @@ u8 HW_USB_XHCI_readByte(u64 addr) {
 }
 
 void HW_USB_XHCI_writeQuad(u64 addr, u64 val) {
-	HW_USB_XHCI_writeDword(addr, val & ((1ul << 32) - 1));
-	HW_USB_XHCI_writeDword(addr + 0x4, (val >> 32) & ((1ul << 32) - 1));
+	__asm__ volatile (
+		"movq %%rax, (%%rbx)\n\t"
+		"mfence				\n\t"
+		: 
+		: "a"(val), "b"(addr)
+		: "memory"
+	);
 }
 
 void HW_USB_XHCI_writeWord(u64 addr, u16 val) {
@@ -143,7 +156,7 @@ int HW_USB_XHCI_Ring_tryInsReq(XHCI_Ring *ring, XHCI_Request *req) {
 
 // try to insert the request into the ring until successful.
 void HW_USB_XHCI_Ring_insReq(XHCI_Ring *ring, XHCI_Request *req) {
-	while (!HW_USB_XHCI_Ring_tryInsReq(ring, req)) IO_hlt();
+	while (!HW_USB_XHCI_Ring_tryInsReq(ring, req)) Task_releaseProcessor();
 }
 
 void HW_USB_XHCI_Ring_reset(XHCI_Ring *ring) {

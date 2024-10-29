@@ -20,6 +20,8 @@ extern TaskStruct Init_taskStruct;
 extern int Task_pidCounter;
 
 #pragma region scheduler
+// pause current task and switch to next task
+void Task_releaseProcessor();
 void Task_updateCurState();
 void Task_updateAllProcessorState();
 

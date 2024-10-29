@@ -60,12 +60,72 @@ void HW_USB_XHCI_init(PCIeManager *pci) {
 		kfree(host, 0);
 		return ;
 	}
+
+	host->pci = pci;
+
+	// set up msix/msi first
+	if (host->msixCapDesc) {
+		int vecNum = host->msixCapDesc->msgCtrl & ((1u << 11) - 1);
+		PCIe_MSIX_Table *tbl = HW_PCIe_MSIX_getTable(host->pci->cfg, host->msixCapDesc);
+		printk(WHITE, BLACK, "XHCI: %#018lx: msix:%#018lx vecNum:%d msgCtrl:%#010x\n", host, tbl, vecNum + 1, host->msixCapDesc->msgCtrl);
+		host->msiDesc = kmalloc(sizeof(PCIe_MSI_Descriptor) * (vecNum + 1), Slab_Flag_Clear, NULL);
+		for (int i = 0; i <= vecNum; i++) {
+			int cpuId; u8 vec;
+			SMP_allocIntrVec(1, &cpuId, &vec);
+			if (cpuId == -1) {
+				printk(RED, BLACK, "XHCI: %#018lx: failed to allocate interrupt vector for intr #%d\n", host, i);
+				kfree(host, 0);
+				return ;
+			}
+			HW_PCIe_MSIX_setMsgAddr(tbl, i, SMP_getCPUInfoPkg(cpuId)->apicID, 0, HW_APIC_DestMode_Physical);
+			HW_PCIe_MSIX_setMsgData(tbl, i, vec, HW_APIC_DeliveryMode_Fixed, HW_APIC_Level_Deassert, HW_APIC_TriggerMode_Edge);
+			HW_PCIe_MSI_initDesc(&host->msiDesc[i], cpuId, vec, HW_USB_XHCI_msiHandler, (u64)host | i);
+			HW_PCIe_MSI_setIntr(&host->msiDesc[i]);
+		}
+	} else {
+		// register MSI register
+		int cpuId; u8 vecSt;
+		int vecNum = (1 << ((host->msiCapDesc->msgCtrl >> 1) & 0x7));
+		SMP_allocIntrVec(vecNum, &cpuId, &vecSt);
+		if (cpuId == -1) {
+			printk(RED, BLACK, "XHCI: %#0118lx: fail to allocate interrupt for MSI\n");
+			kfree(host, 0);
+			return ;
+		}
+		printk(WHITE, BLACK, "XHCI: %#018lx: msiCtrl:%#06x -> get interrupt vector: %#04x~%#04x on processor %d\n", 
+			host, host->msiCapDesc->msgCtrl, vecSt, vecSt + vecNum - 1, cpuId);
+		HW_PCIe_MSI_setMsgAddr(host->msiCapDesc, SMP_getCPUInfoPkg(cpuId)->apicID, 0, HW_APIC_DestMode_Physical);
+		HW_PCIe_MSI_setMsgData(host->msiCapDesc, vecSt, HW_APIC_DeliveryMode_Fixed, HW_APIC_Level_Deassert, HW_APIC_TriggerMode_Edge);
+		// allocate the MSI interrupt descriptor
+		host->msiDesc = kmalloc(sizeof(PCIe_MSI_Descriptor) * vecNum, Slab_Flag_Clear, NULL);
+		for (int i = 0; i < vecNum; i++) {
+			// the parameter is the address of the host and the id of interrupt
+			// We can easily use the OR operation to combine the two parameters, because the address of the host must be 64-aligned.
+			HW_PCIe_MSI_initDesc(&host->msiDesc[i], cpuId, vecSt + i, HW_USB_XHCI_msiHandler, (u64)host | i);
+			HW_PCIe_MSI_setIntr(&host->msiDesc[i]);
+		}
+	}
+
+	// disable the INTx
+	pci->cfg->command |= (1 << 10);
+
+	if (host->msixCapDesc) {
+		PCIe_MSIX_Table *tbl = HW_PCIe_MSIX_getTable(host->pci->cfg, host->msixCapDesc);
+		int vecNum = (host->msixCapDesc->msgCtrl) & ((1u << 11) - 1);
+		for (int i = 0; i <= vecNum; i++) HW_PCIe_MSIX_unmaskIntr(tbl, i);
+		host->msixCapDesc->msgCtrl |= (1u << 15);
+	} else {
+		// disable mask
+		if (host->msiCapDesc->msgCtrl & (1 << 8)) host->msiCapDesc->mask = 0;
+		// enable the interrupt
+		host->msiCapDesc->msgCtrl |= (1 << 0);
+	}
+
 	printk(WHITE, BLACK, "vendor:%04x device:%04x revision:%04x\n", pci->cfg->vendorID, pci->cfg->devID, pci->cfg->revID);
 	if (pci->cfg->vendorID == 0x8086 && pci->cfg->devID == 0x1e31 && pci->cfg->revID == 4) {
 		*(u32 *)((u64)pci->cfg + 0xd8) = 0xffffffff;
 		*(u32 *)((u64)pci->cfg + 0xd0) = 0xffffffff;
 	}
-	host->pci = pci;
 	{
 		u64 phyAddr = (pci->cfg->type.type0.bar[0] | (((u64)pci->cfg->type.type0.bar[1]) << 32)) & ~0xful;
 		host->capRegAddr = (u64)DMAS_phys2Virt(phyAddr);
@@ -74,8 +134,8 @@ void HW_USB_XHCI_init(PCIeManager *pci) {
 	host->opRegAddr = host->capRegAddr + HW_USB_XHCI_CapReg_capLen(host);
 	host->rtRegAddr = host->capRegAddr + HW_USB_XHCI_CapReg_rtsOff(host);
 	host->dbRegAddr = host->capRegAddr + HW_USB_XHCI_CapReg_dbOffset(host);
-	printk(WHITE, BLACK, "XHCI: %#018lx: maxSlot:%d maxIntr:%d maxPort:%d maxScrSz:%d\n", 
-		host, HW_USB_XHCI_maxSlot(host), HW_USB_XHCI_maxIntr(host), HW_USB_XHCI_maxPort(host), HW_USB_XHCI_maxScrSz(host));
+	printk(WHITE, BLACK, "XHCI: %#018lx: maxSlot:%d maxIntr:%d maxPort:%d maxScrSz:%d maxERST:%d\n", 
+		host, HW_USB_XHCI_maxSlot(host), HW_USB_XHCI_maxIntr(host), HW_USB_XHCI_maxPort(host), HW_USB_XHCI_maxScrSz(host), HW_USB_XHCI_maxERST(host));
 	printk(WHITE, BLACK, "\tcapReg:%#018lx opReg:%#018lx rtReg:%#018lx dbReg:%#018lx msi:%#018lx msix:%#018lx\n", 
 		host->capRegAddr, host->opRegAddr, host->rtRegAddr, host->dbRegAddr,
 		host->msiCapDesc, host->msixCapDesc);
@@ -95,6 +155,11 @@ void HW_USB_XHCI_init(PCIeManager *pci) {
 		printk(WHITE, BLACK, "XHCI: %#018lx: context size=8 bytes\n", host);
 		host->ctxSize = 64;
 	} else host->ctxSize = 32;
+	if (HW_USB_XHCI_CapReg_hccParam(host, 1) & (1 << 3)) {
+		printk(RED, BLACK, "XHCI: %#018lx: no support for port power control\n", host);
+		kfree(host, 0);
+		return ;
+	}
 
 	// stop the host
 	HW_USB_XHCI_writeOpReg(host, XHCI_OpReg_cmd, HW_USB_XHCI_readOpReg(host, XHCI_OpReg_cmd) & ~1u);
@@ -142,6 +207,7 @@ void HW_USB_XHCI_init(PCIeManager *pci) {
 		dcbaa[i] = DMAS_virt2Phys(host->devCtx[i]);
 	}
 	host->dev = kmalloc(sizeof(XHCI_Device *) * (HW_USB_XHCI_maxSlot(host) + 1), Slab_Flag_Clear, NULL);
+
 	
 	// release this host from BIOS
 	for (void *ecp = HW_USB_XHCI_getNxtECP(host, NULL); ecp; ecp = HW_USB_XHCI_getNxtECP(host, ecp)) {
@@ -191,9 +257,6 @@ void HW_USB_XHCI_init(PCIeManager *pci) {
 			}
 		}
 	}
-	// configure the ports
-	for (int i = HW_USB_XHCI_maxPort(host); i > 0; i--)
-		HW_USB_XHCI_writePortReg(host, i, XHCI_PortReg_sc, XHCI_PortReg_sc_Power | XHCI_PortReg_sc_AllEve);
 
 	// allocate a command ring
 	host->cmdRing = HW_USB_XHCI_allocRing(XHCI_Ring_maxSize);
@@ -208,59 +271,20 @@ void HW_USB_XHCI_init(PCIeManager *pci) {
 	HW_USB_XHCI_writeOpReg(host, XHCI_OpReg_dnCtrl, (1 << 1) | (HW_USB_XHCI_readOpReg(host, XHCI_OpReg_dnCtrl) & ~0xffffu));
 
 	// allocate a event ring array
-	host->eveRing = HW_USB_XHCI_allocEveRing(4, XHCI_Ring_maxSize);
-	// make the event ring table
-	u64 *eveRingTbl = kmalloc(max(64, sizeof(u64 *) * 8), Slab_Flag_Clear, NULL);
-	for (int i = 0; i < 4; i++)
-		eveRingTbl[(i << 1) + 0] = DMAS_virt2Phys(host->eveRing->rings[i]),
-		eveRingTbl[(i << 1) + 1] = XHCI_Ring_maxSize;
-	HW_USB_XHCI_writeIntrDword(host, 0, XHCI_IntrReg_IMan, (1 << 1) | (1 << 0) | (HW_USB_XHCI_readIntrDword(host, 0, XHCI_IntrReg_IMan) | ~0x3u));
-	HW_USB_XHCI_writeIntrDword(host, 0, XHCI_IntrReg_IMod, 0); // set the interval to be 0 microseconds
-	HW_USB_XHCI_writeIntrDword(host, 0, XHCI_IntrReg_TblSize, 4 | (HW_USB_XHCI_readIntrDword(host, 0, XHCI_IntrReg_TblSize) & ~0xffffu));
-	HW_USB_XHCI_writeIntrQuad(host, 0, XHCI_IntrReg_DeqPtr, 
-		DMAS_virt2Phys(&host->eveRing->rings[host->eveRing->curRingId][host->eveRing->curPos]) | (1ul << 3));
-	HW_USB_XHCI_writeIntrQuad(host, 0, XHCI_IntrReg_TblAddr, DMAS_virt2Phys(eveRingTbl) | (HW_USB_XHCI_readIntrQuad(host, 0, XHCI_IntrReg_TblAddr) & 0x3f));
-
-	if (host->msixCapDesc) {
-		int vecNum = host->msixCapDesc->msgCtrl & ((1u << 11) - 1);
-		PCIe_MSIX_Table *tbl = HW_PCIe_MSIX_getTable(host->pci->cfg, host->msixCapDesc);
-		printk(WHITE, BLACK, "XHCI: %#018lx: msix:%#018lx vecNum:%d msgCtrl:%#010x\n", host, tbl, vecNum + 1, host->msixCapDesc->msgCtrl);
-		host->msiDesc = kmalloc(sizeof(PCIe_MSI_Descriptor) * (vecNum + 1), Slab_Flag_Clear, NULL);
-		for (int i = 0; i <= vecNum; i++) {
-			int cpuId; u8 vec;
-			SMP_allocIntrVec(1, &cpuId, &vec);
-			if (cpuId == -1) {
-				printk(RED, BLACK, "XHCI: %#018lx: failed to allocate interrupt vector for intr #%d\n", host, i);
-				kfree(host, 0);
-				return ;
-			}
-			HW_PCIe_MSIX_setMsgAddr(tbl, i, SMP_getCPUInfoPkg(cpuId)->apicID, 0, HW_APIC_DestMode_Physical);
-			HW_PCIe_MSIX_setMsgData(tbl, i, vec, HW_APIC_DeliveryMode_Fixed, HW_APIC_Level_Deassert, HW_APIC_TriggerMode_Edge);
-			HW_PCIe_MSI_initDesc(&host->msiDesc[i], cpuId, vec, HW_USB_XHCI_msiHandler, (u64)host | i);
-			HW_PCIe_MSI_setIntr(&host->msiDesc[i]);
-		}
-	} else {
-		// register MSI register
-		int cpuId; u8 vecSt;
-		int vecNum = (1 << ((host->msiCapDesc->msgCtrl >> 1) & 0x7));
-		SMP_allocIntrVec(vecNum, &cpuId, &vecSt);
-		if (cpuId == -1) {
-			printk(RED, BLACK, "XHCI: %#0118lx: fail to allocate interrupt for MSI\n");
-			kfree(host, 0);
-			return ;
-		}
-		printk(WHITE, BLACK, "XHCI: %#018lx: msiCtrl:%#06x -> get interrupt vector: %#04x~%#04x on processor %d\n", 
-			host, host->msiCapDesc->msgCtrl, vecSt, vecSt + vecNum - 1, cpuId);
-		HW_PCIe_MSI_setMsgAddr(host->msiCapDesc, SMP_getCPUInfoPkg(cpuId)->apicID, 0, HW_APIC_DestMode_Physical);
-		HW_PCIe_MSI_setMsgData(host->msiCapDesc, vecSt, HW_APIC_DeliveryMode_Fixed, HW_APIC_Level_Deassert, HW_APIC_TriggerMode_Edge);
-		// allocate the MSI interrupt descriptor
-		host->msiDesc = kmalloc(sizeof(PCIe_MSI_Descriptor) * vecNum, Slab_Flag_Clear, NULL);
-		for (int i = 0; i < vecNum; i++) {
-			// the parameter is the address of the host and the id of interrupt
-			// We can easily use the OR operation to combine the two parameters, because the address of the host must be 64-aligned.
-			HW_PCIe_MSI_initDesc(&host->msiDesc[i], cpuId, vecSt + i, HW_USB_XHCI_msiHandler, (u64)host | i);
-			HW_PCIe_MSI_setIntr(&host->msiDesc[i]);
-		}
+	{
+		int eveRingTblSize = min(4, HW_USB_XHCI_maxERST(host));
+		host->eveRing = HW_USB_XHCI_allocEveRing(eveRingTblSize, XHCI_Ring_maxSize);
+		// make the event ring table
+		u64 *eveRingTbl = kmalloc(max(128, sizeof(u64) * (eveRingTblSize << 1)), Slab_Flag_Clear, NULL);
+		for (int i = 0; i < eveRingTblSize; i++)
+			eveRingTbl[(i << 1) + 0] = DMAS_virt2Phys(host->eveRing->rings[i]),
+			eveRingTbl[(i << 1) + 1] = XHCI_Ring_maxSize;
+		HW_USB_XHCI_writeIntrDword(host, 0, XHCI_IntrReg_IMod, 0); // set the interval to be 0 microseconds
+		HW_USB_XHCI_writeIntrDword(host, 0, XHCI_IntrReg_TblSize, eveRingTblSize | (HW_USB_XHCI_readIntrDword(host, 0, XHCI_IntrReg_TblSize) & ~0xffffu));
+		HW_USB_XHCI_writeIntrQuad(host, 0, XHCI_IntrReg_DeqPtr, 
+			DMAS_virt2Phys(&host->eveRing->rings[host->eveRing->curRingId][host->eveRing->curPos]) | (1ul << 3));
+		HW_USB_XHCI_writeIntrQuad(host, 0, XHCI_IntrReg_TblAddr, DMAS_virt2Phys(eveRingTbl) | (HW_USB_XHCI_readIntrQuad(host, 0, XHCI_IntrReg_TblAddr) & 0x3fu));
+		HW_USB_XHCI_writeIntrDword(host, 0, XHCI_IntrReg_IMan, (1 << 1) | (1 << 0) | (HW_USB_XHCI_readIntrDword(host, 0, XHCI_IntrReg_IMan) | ~0x3u));
 	}
 	
 	// initialize the evering handle task
@@ -281,20 +305,12 @@ void HW_USB_XHCI_init(PCIeManager *pci) {
 		host->eveHandlerTask[i] = Task_createTask((Task_Entry)HW_USB_XHCI_evehandleTask, 
 			host, ((1ul << evePreTask) - 1) << (evePreTask * i), Task_Flag_Kernel | Task_Flag_Inner);
 
-	// disable the INTx
-	pci->cfg->command |= (1 << 10);
+	// power off all the ports and restart them
+	for (int i = HW_USB_XHCI_maxPort(host); i > 0; i--) HW_USB_XHCI_writePortReg(host, i, XHCI_PortReg_sc, 0);
 
-	if (host->msixCapDesc) {
-		PCIe_MSIX_Table *tbl = HW_PCIe_MSIX_getTable(host->pci->cfg, host->msixCapDesc);
-		int vecNum = (host->msixCapDesc->msgCtrl) & ((1u << 11) - 1);
-		for (int i = 0; i <= vecNum; i++) HW_PCIe_MSIX_unmaskIntr(tbl, i);
-		host->msixCapDesc->msgCtrl |= (1u << 15);
-	} else {
-		// disable mask
-		if (host->msiCapDesc->msgCtrl & (1 << 8)) host->msiCapDesc->mask = 0;
-		// enable the interrupt
-		host->msiCapDesc->msgCtrl |= (1 << 0);
-	}
+	// configure the ports
+	for (int i = HW_USB_XHCI_maxPort(host); i > 0; i--)
+		HW_USB_XHCI_writePortReg(host, i, XHCI_PortReg_sc, XHCI_PortReg_sc_Power | XHCI_PortReg_sc_AllEve);
 	
 	// set crcr registers
 	HW_USB_XHCI_writeOpRegQuad(host, XHCI_OpReg_crCtrl, DMAS_virt2Phys(host->cmdRing->ring) | 1);
@@ -537,12 +553,14 @@ void HW_USB_XHCI_devMgrTask(XHCI_Device *dev, u64 rootPort) {
 	kfree(req1, Slab_Flag_Private);
 	printk(YELLOW, BLACK, "dev %#018lx: search for driver\n", dev);
 	while (1) {
+		IO_cli();
 		SpinLock_lock(&HW_USB_XHCI_DriverListLock);
 		// search for a compatible driver
 		for (List *drvList = HW_USB_XHCI_DriverList.next; drvList != &HW_USB_XHCI_DriverList; drvList = drvList->next) {
 			XHCI_Driver *driver = container(drvList, XHCI_Driver, list);
 			if (driver->check(dev)) {
 				SpinLock_unlock(&HW_USB_XHCI_DriverListLock);
+				IO_sti();
 				dev->driver = driver;
 				// enable this device
 				if (driver->enable) driver->enable(dev);
@@ -554,6 +572,7 @@ void HW_USB_XHCI_devMgrTask(XHCI_Device *dev, u64 rootPort) {
 			}
 		}
 		SpinLock_unlock(&HW_USB_XHCI_DriverListLock);
+		IO_sti();
 		Intr_SoftIrq_Timer_mdelay(dev->slotId * 10);
 	}
 	End:

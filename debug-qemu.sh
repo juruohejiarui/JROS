@@ -7,6 +7,7 @@ usbProduct=0x0cd1
 
 qemu-system-x86_64 \
 	-drive file="${ovmfPath}",if=pflash,format=raw,unit=0,readonly=on \
+	-enable-kvm \
 	-monitor stdio \
 	-machine type=q35 \
 	-cpu qemu64,+avx,+xsave,+xsaveopt \
@@ -14,4 +15,4 @@ qemu-system-x86_64 \
 	-net none \
 	-device usb-host,vendorid=${usbVendor},productid=${usbProduct},id=hostdev0 \
 	-m 512M \
-	-smp 1	\
+	-smp 4	\
