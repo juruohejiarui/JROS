@@ -62,7 +62,6 @@ static int _modiChk_mouseX(struct DataState *state, int isIn, u8 flags) {
 }
 static int _modi_mouseX(struct DataState *state, int isIn, u8 flags, USB_HID_ParseHelper *helper) {
 	helper->type = HID_RepItem_Main_isRel(flags) ? USB_HID_ReportHelper_Type_Mouse : USB_HID_ReportHelper_Type_Touchpad;
-	printk(WHITE, BLACK, "mouseX off:%d\n", helper->inSz);
 	_applyItem(state, flags, 1, helper, &helper->items.mouse.x);
 	return 1;
 }
@@ -72,7 +71,6 @@ static int _modiChk_mouseY(struct DataState *state, int isIn, u8 flags) {
 				&& !HID_RepItem_Main_isConst(flags);
 }
 static int _modi_mouseY(struct DataState *state, int isIn, u8 flags, USB_HID_ParseHelper *helper) {
-	printk(WHITE, BLACK, "mouseY off:%d\n", helper->inSz);
 	_applyItem(state, flags, 1, helper, &helper->items.mouse.y);
 	return 1;
 }
@@ -82,7 +80,6 @@ static int _modiChk_mouseWheel(struct DataState *state, int isIn, u8 flags) {
 				&& !HID_RepItem_Main_isConst(flags);
 }
 static int _modi_mouseWheel(struct DataState *state, int isIn, u8 flags, USB_HID_ParseHelper *helper) {
-	printk(WHITE, BLACK, "mouse wheel off:%d\n", helper->inSz);
 	_applyItem(state, flags, 1, helper, &helper->items.mouse.wheel);
 	return 1;
 }
@@ -93,7 +90,6 @@ static int _modiChk_mouseBtn(struct DataState *state, int isIn, u8 flags) {
 }
 static int _modi_mouseBtn(struct DataState *state, int isIn, u8 flags, USB_HID_ParseHelper *helper) {
 	_applyItem(state, flags, 1, helper, &helper->items.mouse.btn);
-	printk(WHITE, BLACK, "mouse button off:%d\n", helper->inSz);
 	helper->items.mouse.btn.size = state->cnt * state->sz;
 	return state->cnt;
 }
@@ -104,15 +100,12 @@ static int _modi_keyboard(struct DataState *state, int isIn, u8 flags, USB_HID_P
 	helper->type = USB_HID_ReportHelper_Type_Keyboard;
 	// ctrl keys
 	if (state->sz == 1) {
-		printk(WHITE, BLACK, "keyboard spK off:%d size:%d\n", helper->inSz, state->cnt * state->sz);
 		_applyItem(state, flags, 1, helper, &helper->items.keyboard.spK);
 		helper->items.keyboard.spK.off = helper->inSz;
 		helper->items.keyboard.spK.size = state->cnt * state->sz;
 	} else {
-		printk(WHITE, BLACK, "keyboard key off:%d size:%d ", helper->inSz, state->sz);
 		for (int i = 0; i < state->cnt; i++) {
 			register USB_HID_ReportItem *key = &helper->items.keyboard.key[i];
-			printk(WHITE, BLACK, "key %d: off:%d ", i, helper->inSz + i * state->sz);
 			key->off = helper->inSz + i * state->sz;
 			key->flags = flags;
 			key->rgMn = state->lgMn, key->rgMx = state->lgMx;
@@ -154,11 +147,11 @@ static int _parseMain(USB_HID_ParseHelper *helper, u8 *rep, struct DataState *st
 	switch (_getPrefixField(*rep, HID_RepItem_Tag)) {
 		case HID_RepItem_Tag_Input:
 		case HID_RepItem_Tag_Output:
-			printk(WHITE, BLACK, "main: locTop:%d lgMn:%d lgMx:%d cnt:%d sz:%d usgPg:%d flags:%d usage:",
-				state->locTop, state->lgMn, state->lgMx, state->cnt, state->sz, state->usagePg, _getItemData(rep));
-			for (int i = 0; i < state->usageNum[state->locTop]; i++)
-				printk(WHITE, BLACK, "%x ", state->usage[state->locTop][i]);
-			printk(WHITE, BLACK, "\n");
+			// printk(WHITE, BLACK, "main: locTop:%d lgMn:%d lgMx:%d cnt:%d sz:%d usgPg:%d flags:%d usage:",
+				// state->locTop, state->lgMn, state->lgMx, state->cnt, state->sz, state->usagePg, _getItemData(rep));
+			// for (int i = 0; i < state->usageNum[state->locTop]; i++)
+				// printk(WHITE, BLACK, "%x ", state->usage[state->locTop][i]);
+			// printk(WHITE, BLACK, "\n");
 			_tryModify(state, (_getPrefixField(*rep, HID_RepItem_Tag) == HID_RepItem_Tag_Input), *(rep + 1), helper);
 			state->usageNum[state->locTop] = 0;
 			break;
@@ -198,6 +191,7 @@ static int _parseGlobal(u8 *rep, struct DataState *state) {
 			break;
 		case HID_RepItem_Tag_ReportId:
 			state->id = _getItemData(rep);
+			printk(WHITE, BLACK, "Report Id=%d\n", state->id);
 			break;
 		default:
 			printk(RED, BLACK, "HID parse helper: invalid global item tag:%x\n", _getPrefixField(*rep, HID_RepItem_Tag));
@@ -260,6 +254,16 @@ USB_HID_ParseHelper *HW_USB_HID_genParseHelper(u8 *rep, u64 len) {
 	}
 	helper->id = curDtState.id;
 	SpinLock_unlock(&_lock);
+	// set default idle for this device
+	switch (helper->type) {
+		case USB_HID_ReportHelper_Type_Keyboard:
+			helper->idle = 0;
+			break;
+		case USB_HID_ReportHelper_Type_Mouse:
+		case USB_HID_ReportHelper_Type_Touchpad:
+			helper->idle = 0xff;
+			break;
+	}
 	printk(WHITE, BLACK, "HID parse helper: %#018lx: reportId:%d type:%d inSz:%d outSz:%d\n", helper, helper->id, helper->type, helper->inSz, helper->outSz);
 	return helper;
 }

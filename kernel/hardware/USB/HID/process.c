@@ -279,7 +279,7 @@ void HW_USB_HID_process(XHCI_Device *dev) {
 			}
 		}
 		// set SET_IDLE
-		HW_USB_XHCI_TRB_setData(&req1->trb[0], HW_USB_XHCI_TRB_mkSetup(0x21, 0x0a, 0x0000, inters[i].desc->bInterNum, 0));
+		HW_USB_XHCI_TRB_setData(&req1->trb[0], HW_USB_XHCI_TRB_mkSetup(0x21, 0x0a, (helper->idle << 16), inters[i].desc->bInterNum, 0));
 		HW_USB_XHCI_Ring_insReq(dev->trRing[0], req1);
 		if (HW_USB_XHCI_Req_ringDbWait(dev->host, dev->slotId, 1, 0, req1) != XHCI_TRB_CmplCode_Succ) {
 			printk(RED, BLACK, "dev %#018lx: failed to set idle for interface %d, code=%d\n",

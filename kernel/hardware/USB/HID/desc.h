@@ -82,6 +82,7 @@ typedef struct USB_HID_ReportItem {
 
 typedef struct USB_HID_ParseHelper {
 	int type, id, inSz, outSz;
+	u32 idle;
 	// the raw data of report descriptor
 	u8 *raw;
 	#define USB_HID_ReportHelper_Type_Mouse		1
