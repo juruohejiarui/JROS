@@ -37,7 +37,6 @@ void startSMP() {
 	IO_sti();
 	SMP_current->flags |= SMP_CPUInfo_flag_APUInited;
 	Atomic_inc(&SMP_initCpuNum);
-	// printk(WHITE, BLACK, "CPU %d inited\n", SMP_getCurCPUIndex());
 	Task_Syscall_init();
 
 	while (!Task_cfsStruct.flags) ;

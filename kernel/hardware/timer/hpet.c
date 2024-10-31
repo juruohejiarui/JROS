@@ -38,7 +38,6 @@ IntrHandlerDeclare(HW_Timer_HPET_handler) {
 		Task_updateAllProcessorState();
 	}
 	_mode ^= 1;
-	// printk(BLACK, WHITE, "H");
 }
 
 void HW_Timer_HPET_init() {

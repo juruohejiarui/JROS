@@ -1,5 +1,5 @@
-# ovmfPath="/usr/share/OVMF/OVMF_CODE_4M.fd"
-ovmfPath=/usr/share/edk2/ovmf/OVMF_CODE.fd
+ovmfPath="/usr/share/OVMF/OVMF_CODE_4M.fd"
+# ovmfPath=/usr/share/edk2/ovmf/OVMF_CODE.fd
 usbVendor=0x21c4
 usbProduct=0x0cd1
 # usbVendor=0x17ef
@@ -10,7 +10,7 @@ qemu-system-x86_64 \
 	-enable-kvm \
 	-monitor stdio \
 	-machine type=q35 \
-	-cpu qemu64,+avx,+xsave,+xsaveopt \
+	-cpu qemu64,+avx,+xsave \
 	-device qemu-xhci \
 	-net none \
 	-device usb-host,vendorid=${usbVendor},productid=${usbProduct},id=hostdev0 \

@@ -19,7 +19,7 @@ static u32 _cvtId(u32 x2apicID) {
 	if (SMP_cpuNum < 1) return 0;
 	int l = 0, r = SMP_cpuNum - 1;
 	while (l <= r) {
-		int mid = (l + r) >> 1, idx = SMP_cpuInfo[mid].apicID;
+		int mid = (l + r) >> 1, idx = SMP_cpuInfo[mid].x2apicID;
 		if (idx == x2apicID) return mid;
 		if (idx < x2apicID) l = mid + 1;
 		else r = mid - 1;
@@ -130,6 +130,7 @@ static int _parseMADT() {
 
 // schedule interrupt
 IntrHandlerDeclare(SMP_irq0xc8Handler) {
+	// if (SMP_getCurCPUIndex() != 0) printk(WHITE, BLACK, "I%d", SMP_getCurCPUIndex());
 	if (SMP_current->flags & SMP_CPUInfo_flag_InTaskLoop) Task_updateCurState();
 }
 
@@ -250,8 +251,13 @@ void SMP_sendIPI_allButSelf(u32 vector, void *msg) {
 u32 SMP_getCurCPUIndex() {
 	u32 a, b, c, d;
 	// this will return the x2apic ID of the current processor
-    HW_CPU_cpuid(0xb, 0, &a, &b, &c, &d);
-    return _cvtId(d);
+	if (HW_APIC_supportFlag & HW_APIC_supportFlag_X2APIC) {
+		HW_CPU_cpuid(0xb, 0, &a, &b, &c, &d);
+   		return _cvtId(d);
+	} else {
+		HW_CPU_cpuid(0x1, 0, &a, &b, &c, &d);
+		return _cvtId(b >> 24);
+	}
 }
 
 SMP_CPUInfoPkg *SMP_getCPUInfoPkg(u32 idx) { return &SMP_cpuInfo[idx]; }

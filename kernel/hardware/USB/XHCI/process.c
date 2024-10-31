@@ -321,6 +321,26 @@ void HW_USB_XHCI_init(PCIeManager *pci) {
 	
 	printk(WHITE, BLACK, "XHCI: %#018lx: finish initialization. host cmd:%#010x state:%#010x\n", 
 			host, HW_USB_XHCI_readOpReg(host, XHCI_OpReg_cmd), HW_USB_XHCI_readOpReg(host, XHCI_OpReg_status));
+
+	// for qemu xhci, we need to seed port change event manually for the initialization
+	if (host->pci->cfg->vendorID == 0x1b36 && host->pci->cfg->devID == 0x000d) {
+		for (int i = HW_USB_XHCI_maxPort(host); i > 0; i--) {
+			u32 sc = HW_USB_XHCI_readPortReg(host, i, XHCI_PortReg_sc);
+			if (!(sc & 1)) continue;
+			printk(WHITE, BLACK, "generate port event for port %d\n", i);
+			// make an Port Status Change event
+			XHCI_GenerTRB trb, *target = NULL;
+			memset(&trb, 0, sizeof(XHCI_GenerTRB));
+			HW_USB_XHCI_TRB_setType(&trb, XHCI_TRB_Type_PortStChg);
+			HW_USB_XHCI_TRB_setData(&trb, i << 24);
+			IO_cli();
+			SpinLock_lock(&host->eveLock[0]);
+			while ((target = _getEmptyEvePtr(host, 0)) == NULL) ;
+			SpinLock_unlock(&host->eveLock[0]);
+			IO_sti();
+			memcpy(&trb, target, sizeof(XHCI_GenerTRB));
+		}
+	}
 }
 
 IntrHandlerDeclare(HW_USB_XHCI_msiHandler) {
@@ -333,12 +353,11 @@ IntrHandlerDeclare(HW_USB_XHCI_msiHandler) {
 		// check if the event handler busy bit of DepPtr is set
 		if (!(HW_USB_XHCI_readIntrQuad(host, i, XHCI_IntrReg_DeqPtr) & (1 << 3))) continue;
 		// clear the busy bit
-		XHCI_GenerTRB *trb = NULL;
+		XHCI_GenerTRB *trb = NULL, *target = NULL;
 		SpinLock_lock(&host->eveLock[i]);
-		while (!_eveFull(host, i) && HW_USB_XHCI_EveRing_getNxt(host->eveRing, &trb))
-			HW_USB_XHCI_TRB_copy(trb, _getEmptyEvePtr(host, i));
+		while (!_eveFull(host, i) && HW_USB_XHCI_EveRing_getNxt(host->eveRing, &trb) && (target = _getEmptyEvePtr(host, i)) != NULL)
+			HW_USB_XHCI_TRB_copy(trb, target);
 		SpinLock_unlock(&host->eveLock[i]);
-		
 		// write the dequeue pointer
 		if (trb)
 			HW_USB_XHCI_writeIntrQuad(host, i, XHCI_IntrReg_DeqPtr, DMAS_virt2Phys(trb) | (1 << 3));
@@ -407,7 +426,7 @@ void HW_USB_XHCI_evehandleTask(XHCI_Host *host, u64 intrMap) {
 				}
 			}
 		}
-		IO_hlt();
+		Task_releaseProcessor();
 	}
 }
 
@@ -522,7 +541,7 @@ void HW_USB_XHCI_devMgrTask(XHCI_Device *dev, u64 rootPort) {
 
 		while (1) IO_hlt();
 	}
-	printk(GREEN, BLACK, "dev %#018lx address deivce with successfully\n", dev);
+	printk(GREEN, BLACK, "dev %#018lx address deivce & evaluate context successfully\n", dev);
 	
 	// get the full device descriptor
 	HW_USB_XHCI_TRB_setData(&req1->trb[0], 	HW_USB_XHCI_TRB_mkSetup(0x80, 0x6, 0x0100, 0x0, 0xff));
