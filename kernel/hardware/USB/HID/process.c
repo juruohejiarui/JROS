@@ -231,7 +231,7 @@ void HW_USB_HID_process(XHCI_Device *dev) {
 				HW_USB_XHCI_EpCtx_writeMxESITPay(epCtx,
 					HW_USB_XHCI_readCtx(epCtx, 1, XHCI_EpCtx_mxPackSize) * (HW_USB_XHCI_readCtx(epCtx, 1, XHCI_EpCtx_mxBurstSize) + 1));
 
-				printk(WHITE, BLACK, " interval=%d epType=%d CErr=%d mxPkSz=%d mxBurstSz=%d mxESITPay=%d\n",
+				printk(WHITE, BLACK, "interval=%d epType=%d CErr=%d mxPkSz=%d mxBurstSz=%d mxESITPay=%d\n",
 					HW_USB_XHCI_readCtx(epCtx, 0, XHCI_EpCtx_interval), 
 					epType, 
 					3, 

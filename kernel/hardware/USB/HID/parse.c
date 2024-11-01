@@ -111,7 +111,6 @@ static int _modi_keyboard(struct DataState *state, int isIn, u8 flags, USB_HID_P
 			key->rgMn = state->lgMn, key->rgMx = state->lgMx;
 			key->size = state->sz;
 		}
-		printk(WHITE, BLACK, "\n");
 	}
 	return state->cnt;
 }

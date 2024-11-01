@@ -6,6 +6,7 @@
 #include "cpu.h"
 #include "keyboard.h"
 #include "USB.h"
+#include "NVMe.h"
 
 void HW_init() {
     HW_UEFI_init();
@@ -18,4 +19,5 @@ void HW_init() {
 
 void HW_initAdvance() {
 	HW_USB_init();
+	HW_NVMe_init();
 }

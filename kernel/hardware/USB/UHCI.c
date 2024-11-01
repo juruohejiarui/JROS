@@ -63,11 +63,11 @@ void HW_USB_UHCI_init(PCIeConfig *uhci) {
 	List_init(&ctrl->listEle);
 	List_insBefore(&ctrl->listEle, &HW_USB_UHCI_mgrList);
 	ctrl->config = uhci;
-	printk(WHITE, BLACK, "mapInfo:%02x status:%04x ", (uhci->type.type0.bar[0] & 0xf), (uhci->status));
+	printk(WHITE, BLACK, "mapInfo:%02x status:%04x ", (uhci->type0.bar[0] & 0xf), (uhci->status));
 	// get power registers
 	if (uhci->status & 0x10) {
-		printk(WHITE, BLACK, "capPtr:%02x\n", uhci->type.type0.capPtr);
-		ctrl->pwRegs = (PCIePowerRegs *)(((u64)uhci) + (uhci->type.type0.capPtr & 0xfc));
+		printk(WHITE, BLACK, "capPtr:%02x\n", uhci->type0.capPtr);
+		ctrl->pwRegs = (PCIePowerRegs *)(((u64)uhci) + (uhci->type0.capPtr & 0xfc));
 	} else {
 		printk(WHITE, BLACK, "No power registers\n");
 		while (1) IO_hlt();
@@ -76,7 +76,7 @@ void HW_USB_UHCI_init(PCIeConfig *uhci) {
 	Intr_SoftIrq_Timer_mdelay(101);
 	printk(WHITE, BLACK, "Power Status:%04x Power Control:%04x\n", ctrl->pwRegs->powerStatus, ctrl->pwRegs->powerCtrl);
 	// get I/O registers
-	ctrl->ioRegAddr = uhci->type.type0.bar[4] & 0xfffc;
+	ctrl->ioRegAddr = uhci->type0.bar[4] & 0xfffc;
 	_detect(ctrl);
 	_setup(ctrl);
 

@@ -49,7 +49,7 @@ typedef struct {
             u16 subsysVendorID;
             u32 legacyBase;
         } __attribute__ ((packed)) type2;
-    } __attribute__ ((packed)) type;
+    } __attribute__ ((packed));
 } __attribute__ ((packed)) PCIeConfig;
 
 // power status and control registers
@@ -126,7 +126,7 @@ static __always_inline__ PCIeConfig *HW_PCIe_getDevPtr(u64 addrBase, u8 bus, u8 
 
 static __always_inline__ PCIe_CapabilityHeader *HW_PCIe_getNxtCapHdr(PCIeConfig *cfg, PCIe_CapabilityHeader *hdr) {
 	if (hdr) return hdr->nxtPtr ? (PCIe_CapabilityHeader *)((u64)cfg + hdr->nxtPtr) : NULL;
-	return (PCIe_CapabilityHeader *)((u64)cfg + cfg->type.type0.capPtr);
+	return (PCIe_CapabilityHeader *)((u64)cfg + cfg->type0.capPtr);
 }
 
 List *HW_PCIe_getMgrList();
@@ -141,7 +141,7 @@ void HW_PCIe_MSI_setMsgAddr(PCIe_MSICapability *msi, u32 apicId, int redirect, i
 void HW_PCIe_MSI_setMsgData(PCIe_MSICapability *msi, u32 vec, u32 deliverMode, u32 level, u32 triggerMode);
 
 static __always_inline__ PCIe_MSIX_Table *HW_PCIe_MSIX_getTable(PCIeConfig *cfg, PCIe_MSIXCapability *cap) {
-	void *tblAddr = DMAS_phys2Virt((*(u64 *)&cfg->type.type0.bar[PCIe_MSIXCapability_bir(cap)] & ~0xf) + PCIe_MSIXCapability_tblOff(cap));
+	void *tblAddr = DMAS_phys2Virt((*(u64 *)&cfg->type0.bar[PCIe_MSIXCapability_bir(cap)] & ~0xf) + PCIe_MSIXCapability_tblOff(cap));
     if ((u64)tblAddr >= MM_DMAS_bsSize) MM_PageTable_map(IO_getCR(3), (u64)tblAddr, DMAS_virt2Phys(tblAddr), MM_PageTable_Flag_Presented | MM_PageTable_Flag_Writable);
     return tblAddr;
 }

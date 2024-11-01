@@ -44,7 +44,7 @@ void HW_USB_XHCI_init(PCIeManager *pci) {
 	}
 	XHCI_Host *host = kmalloc(sizeof(XHCI_Host), Slab_Flag_Clear, NULL);
 	List_init(&host->listEle);
-	printk(WHITE, BLACK, "capPtr:%x\n", pci->cfg->type.type0.capPtr);
+	printk(WHITE, BLACK, "capPtr:%x\n", pci->cfg->type0.capPtr);
 	for (PCIe_CapabilityHeader *hdr = HW_PCIe_getNxtCapHdr(pci->cfg, NULL); hdr; hdr = HW_PCIe_getNxtCapHdr(pci->cfg, hdr)) {
 		switch (hdr->capId) {
 			case  PCIe_CapId_MSI:
@@ -127,7 +127,7 @@ void HW_USB_XHCI_init(PCIeManager *pci) {
 		*(u32 *)((u64)pci->cfg + 0xd0) = 0xffffffff;
 	}
 	{
-		u64 phyAddr = (pci->cfg->type.type0.bar[0] | (((u64)pci->cfg->type.type0.bar[1]) << 32)) & ~0xful;
+		u64 phyAddr = (pci->cfg->type0.bar[0] | (((u64)pci->cfg->type0.bar[1]) << 32)) & ~0xful;
 		host->capRegAddr = (u64)DMAS_phys2Virt(phyAddr);
 		if (phyAddr >= MM_DMAS_bsSize) MM_PageTable_map2M(getCR3(), host->capRegAddr, phyAddr, MM_PageTable_Flag_Presented);
 	}
