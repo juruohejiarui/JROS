@@ -85,8 +85,8 @@ typedef struct USB_HID_ParseHelper {
 	u32 idle;
 	// the raw data of report descriptor
 	u8 *raw;
-	#define USB_HID_ReportHelper_Type_Mouse		1
-	#define USB_HID_ReportHelper_Type_Keyboard 	2
+	#define USB_HID_ReportHelper_Type_Keyboard 	1
+	#define USB_HID_ReportHelper_Type_Mouse		2
 	#define USB_HID_ReportHelper_Type_Touchpad	3
 	union {
 		struct {
@@ -118,6 +118,7 @@ typedef struct USB_HID_Interface {
 	USB_HidDesc *hidDesc;
 	XHCI_EpDesc **eps;
 	USB_HID_ParseHelper *helper;
+	int protoNum;
 } USB_HID_Interface;
 
 

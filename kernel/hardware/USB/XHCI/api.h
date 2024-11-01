@@ -247,6 +247,8 @@ inline __always_inline__ void *HW_USB_XHCI_getCtx(XHCI_Device *dev, int ctxId) {
 	return (void *)((u64)dev->inCtx + ctxId * dev->host->ctxSize);
 }
 
+u32 HW_USB_XHCI_EpCtx_interval(XHCI_Device *dev, int epType, u32 bInterval);
+
 u32 HW_USB_XHCI_EpCtx_readMxESITPay(XHCI_EpCtx *ep);
 
 void HW_USB_XHCI_EpCtx_writeMxESITPay(XHCI_EpCtx *ep, u32 val);

@@ -191,7 +191,7 @@ static int _parseGlobal(u8 *rep, struct DataState *state) {
 			break;
 		case HID_RepItem_Tag_ReportId:
 			state->id = _getItemData(rep);
-			printk(WHITE, BLACK, "Report Id=%d\n", state->id);
+			// printk(WHITE, BLACK, "Report Id=%d\n", state->id);
 			break;
 		default:
 			printk(RED, BLACK, "HID parse helper: invalid global item tag:%x\n", _getPrefixField(*rep, HID_RepItem_Tag));

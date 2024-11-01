@@ -5,6 +5,7 @@
 
 #define max(a, b) ({__typeof__(a) ta = (a); __typeof__(b) tb = (b); (ta) > (tb) ? (ta) : (tb); })
 #define min(a, b) ({__typeof__(a) ta = (a); __typeof__(b) tb = (b); (ta) > (tb) ? (tb) : (ta); })
+#define abs(a) ({__typeof__(a) ta = (a); ta < 0 ? -ta : ta; })
 
 #include "ds.h"
 

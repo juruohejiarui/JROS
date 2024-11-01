@@ -281,6 +281,28 @@ u32 HW_USB_XHCI_readCtx(void *ctx, int dwId, u32 mask) {
 	return (HW_USB_XHCI_readDword((u64)ctx + dwId * sizeof(u32)) & mask) >> (Bit_ffs(mask) - 1);
 }
 
+u32 HW_USB_XHCI_EpCtx_interval(XHCI_Device *dev, int epType, u32 bInterval) {
+	int speed = HW_USB_XHCI_readCtx(HW_USB_XHCI_getCtx(dev, XHCI_InCtx_Slot), 0, XHCI_SlotCtx_speed);
+	// printk(WHITE, BLACK, "%d\n", speed);
+	switch (speed) {
+		case XHCI_Port_Speed_Full:
+		case XHCI_Port_Speed_Low :
+			// is interrupt endpoint
+			if ((epType & 0x3) == 0x3) {
+				// printk(YELLOW, BLACK, "speed=%d,bInterval=%d\n", speed, bInterval);
+				u8 interval = 0;
+				for (int i = 3; i <= 10; i++) {
+					if (abs((1 << i) - 8 * bInterval) < abs((1 << interval) - 8 * bInterval))
+						interval = i;
+				}
+				return interval;
+			} else return bInterval;
+		default :
+			return bInterval;
+	}
+	return -1;
+}
+
 u32 HW_USB_XHCI_EpCtx_readMxESITPay(XHCI_EpCtx *ep) {
 	return (HW_USB_XHCI_readCtx(ep, 0, XHCI_EpCtx_mxESITPayH) << 16) | HW_USB_XHCI_readCtx(ep, 4, XHCI_EpCtx_mxESITPayL);
 }
