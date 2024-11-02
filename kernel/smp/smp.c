@@ -120,7 +120,10 @@ static int _parseMADT() {
 			}
 		if (fl) break;
 	}
-
+	for (int i = 0; i < SMP_cpuNum; i++) if (SMP_cpuInfo[i].x2apicID == _bspx2ApicId) {
+		SMP_bspIdx = i;
+		break;
+	}
 
 	printk(WHITE, BLACK, "SMP: processor num: %d\n", SMP_cpuNum);
 	for (int i = 0; i < SMP_cpuNum; i++) printk(WHITE, BLACK, "CPU %d: apic:%4x x2apic:%4x\n", i, SMP_cpuInfo[i].apicID, SMP_cpuInfo[i].x2apicID);
@@ -143,11 +146,16 @@ void SMP_init() {
 	SMP_initCpuNum.value = 0;
 
 	// is BSP
-	{
+	if (HW_APIC_supportFlag & HW_APIC_supportFlag_X2APIC) {
 		u32 a, b, c, d;
     	HW_CPU_cpuid(0xb, 0, &a, &b, &c, &d);
 		_bspx2ApicId = d;
 		printk(WHITE, BLACK, "SMP: BSP x2APIC ID=%x\n", d);
+	} else {
+		u32 a, b, c, d;
+    	HW_CPU_cpuid(0x1, 0, &a, &b, &c, &d);
+		_bspx2ApicId = b >> 24;
+		printk(WHITE, BLACK, "SMP: BSP APIC ID=%x\n", b >> 24);
 	}
 	// find the local processor list and register each of them.
 	int res = _parseMADT();
@@ -156,7 +164,7 @@ void SMP_init() {
 	IO_sti();
 
     printk(WHITE, BLACK, "SMP: copy byte:%#010lx\n", (u64)&SMP_APUBootEnd - (u64)&SMP_APUBootStart);
-    memcpy(SMP_APUBootStart, DMAS_phys2Virt(0x8000), (u64)&SMP_APUBootEnd - (u64)&SMP_APUBootStart);
+    memcpy(SMP_APUBootStart, DMAS_phys2Virt(0x20000), (u64)&SMP_APUBootEnd - (u64)&SMP_APUBootStart);
 
 	APIC_ICRDescriptor icr;
 	*(u64 *)&icr = 0;
@@ -169,12 +177,11 @@ void SMP_init() {
 	icr.DestShorthand = HW_APIC_DestShorthand_AllExcludingSelf;
 	
 	HW_APIC_writeICR(*(u64 *)&icr);
-	// IO_writeMSR(0x830, *(u64 *)&icr);
 	printk(WHITE, BLACK, "SMP: init-IPI (value=%#018lx) sent to all APs ...\n", *(u64 *)&icr);
 	u64 st = HW_Timer_HPET_jiffies();
 	for (int i = 0; i < SMP_cpuNum; i++) if (i != SMP_bspIdx) {
 		u64 prev = SMP_initCpuNum.value;
-		icr.vector = 0x08;
+		icr.vector = 0x20;
 		icr.deliverMode = HW_APIC_DeliveryMode_Startup;
 		icr.DestShorthand = HW_APIC_DestShorthand_None;
 		HW_APIC_ICRDescriptor_setDesc(&icr, SMP_cpuInfo[i].apicID, SMP_cpuInfo[i].x2apicID);
@@ -183,7 +190,7 @@ void SMP_init() {
 		
 		while (SMP_initCpuNum.value == prev) {
 			printk(WHITE, BLACK, "waiting...(%d s)\r", (HW_Timer_HPET_jiffies() - st) / 1000);
-			IO_hlt();
+			// IO_hlt();
 		}
 		printk(WHITE, BLACK, "SMP: finish initalize CPU %d\n", i);
 		// Intr_SoftIrq_Timer_mdelay(10);
@@ -224,12 +231,18 @@ void SMP_sendIPI_self(u32 vector, void *msg) {
 	APIC_ICRDescriptor icr;
 	*(u64 *)&icr = 0;
 	icr.vector = vector;
-	icr.level = HW_APIC_Level_Assert;
-	icr.deliverMode = HW_APIC_DeliveryMode_Fixed;
-	icr.destMode = HW_APIC_DestMode_Physical;
-	icr.triggerMode = HW_APIC_TriggerMode_Edge;
-	icr.DestShorthand = HW_APIC_DestShorthand_Self;
-	HW_APIC_writeICR(*(u64 *)&icr);
+	if (HW_APIC_supportFlag & HW_APIC_supportFlag_X2APIC) {
+		// use self IPI register
+		IO_writeMSR(0x83F, *(u64 *)&icr);
+	} else {
+		icr.level = HW_APIC_Level_Assert;
+		icr.deliverMode = HW_APIC_DeliveryMode_Fixed;
+		icr.destMode = HW_APIC_DestMode_Physical;
+		icr.triggerMode = HW_APIC_TriggerMode_Edge;
+		icr.DestShorthand = HW_APIC_DestShorthand_Self;
+		HW_APIC_writeICR(*(u64 *)&icr);
+	}
+	
 }
 
 void SMP_sendIPI_allButSelf(u32 vector, void *msg) {

@@ -15,6 +15,7 @@ qemu-system-x86_64 \
 	-net none \
 	-device usb-host,vendorid=${usbVendor},productid=${usbProduct},id=hostdev0 \
 	-device usb-kbd \
+	-device usb-mouse \
 	-m 512M \
 	-smp 4	\
 	# -device usb-host,vendorid=0x24ae,productid=0x4056,id=hostdev1 \

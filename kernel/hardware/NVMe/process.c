@@ -3,6 +3,20 @@
 
 static List _devList;
 
+void HW_NVMe_initQue(NVMe_QueMgr *queMgr, u64 queSize, u64 attr) {
+	queMgr->desc.size = queSize;
+	queMgr->attr = attr;
+	u64 entrySize = (queMgr->attr & NVMe_QueMgr_attr_isSubmQue ? sizeof(NVMe_SubmQueEntry) : sizeof(NVMe_CmplQueEntry));
+	queMgr->que = kmalloc(queSize * entrySize, Slab_Flag_Clear, NULL);
+	queMgr->desc.addr = DMAS_virt2Phys(queMgr->que);
+	queMgr->desc.size = queSize;
+	SpinLock_init(&queMgr->lock);
+	queMgr->hdr = queMgr->til = 0;
+	if (queMgr->attr & NVMe_QueMgr_attr_isSubmQue) {
+		queMgr->reqSrc = kmalloc(queSize * sizeof(NVMe_Request), Slab_Flag_Clear, NULL);
+	} else queMgr->submSrc = NULL;
+}
+
 // initialize the device and create a management task, return the device if successfully.
 NVMe_Host *HW_NVMe_initDevice(PCIeConfig *pciCfg) {
 	NVMe_Host *host = kmalloc(sizeof(NVMe_Host), Slab_Flag_Clear, NULL);
@@ -13,8 +27,6 @@ NVMe_Host *HW_NVMe_initDevice(PCIeConfig *pciCfg) {
 
 	if ((u64)host->regs >= MM_DMAS_bsSize)
 		MM_PageTable_map(getCR3(), (u64)host->regs, DMAS_virt2Phys(host->regs), MM_PageTable_Flag_Presented | MM_PageTable_Flag_Writable);
-	
-	
 	return NULL;
 }
 

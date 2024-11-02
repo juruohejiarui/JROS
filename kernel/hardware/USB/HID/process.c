@@ -270,6 +270,14 @@ void HW_USB_HID_process(XHCI_Device *dev) {
 	for (int i = 0; i < dev->cfgDesc[0]->bNumInter; i++) {
 		USB_HID_ParseHelper *helper = HW_USB_HID_mkParseHelper(dev, inters[i].desc, inters[i].hidDesc);
 		inters[i].helper = helper;
+		// set SET_PROTOCOL
+		HW_USB_XHCI_TRB_setData(&req1->trb[0], HW_USB_XHCI_TRB_mkSetup(0x21, 0x0b, 0, inters[i].desc->bInterNum, 0));
+		HW_USB_XHCI_Ring_insReq(dev->trRing[0], req1);
+		if (HW_USB_XHCI_Req_ringDbWait(dev->host, dev->slotId, 1, 0, req1) != XHCI_TRB_CmplCode_Succ) {
+			printk(RED, BLACK, "dev %#018lx: failed to set protocol for interface %d, code=%d\n",
+					dev, inters[i].desc->bInterNum, HW_USB_XHCI_TRB_getCmplCode(&req1->res));
+			while (1) IO_hlt();
+		}
 		// set SET_IDLE
 		HW_USB_XHCI_TRB_setData(&req1->trb[0], HW_USB_XHCI_TRB_mkSetup(0x21, 0x0a, 0, inters[i].desc->bInterNum, 0));
 		HW_USB_XHCI_Ring_insReq(dev->trRing[0], req1);

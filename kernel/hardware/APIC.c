@@ -166,9 +166,9 @@ void HW_APIC_writeRTE(u8 index, u64 val) {
 void HW_APIC_writeICR(u64 val) {
 	if (HW_APIC_supportFlag & HW_APIC_supportFlag_X2APIC) IO_writeMSR(0x830, val);
 	else {
-		*(u32 *)DMAS_phys2Virt(0xfee00310) = val >> 32;
+		*(u32 *)DMAS_phys2Virt(0xfee00310) = (u32)(val >> 32);
 		IO_mfence();
-		*(u32 *)DMAS_phys2Virt(0xfee00300) = val & 0xffffffff;
+		*(u32 *)DMAS_phys2Virt(0xfee00300) = val & 0xffffffffu;
 	}
 }
 
