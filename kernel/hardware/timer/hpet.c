@@ -33,7 +33,7 @@ IntrHandlerDeclare(HW_Timer_HPET_handler) {
 	// print the counter
 	if (_mode & 1) {
 		Atomic_inc(&_jiffies);
-		if (SMP_current->flags & SMP_CPUInfo_flag_InTaskLoop) Intr_SoftIrq_Timer_updateState();
+		if (Task_cfsStruct.flags) Intr_SoftIrq_Timer_updateState();
 	} else {
 		Task_updateAllProcessorState();
 	}

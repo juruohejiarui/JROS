@@ -50,7 +50,6 @@ extern char _end;
 #define userAddrStart   0x0000000000000000ul
 #define userAddrEd      0x00007ffffffffffful
 #define kernelAddrStart 0xffff800000000000ul
-#define kernelAddrEd    0xfffffffffffffffful
 
 #define availVirtAddrSt ((u64 *)Page_4KUpAlign((u64)memManageStruct.edOfStruct))
 

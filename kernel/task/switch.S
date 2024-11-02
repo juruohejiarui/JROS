@@ -9,40 +9,37 @@ TaskStruct_vRunTime	= 0x40
 ThreadStruct_rip	= 0x00
 ThreadStruct_rsp	= 0x08
 
-Task_kernelStackEnd = 0xfffffffffffffff0
-
 
 TaskMemStruct_pgdPhyAddr = 0x00
 /* Task_switch(TaskStruct *next) */
 ENTRY(Task_switch)
 	pushq %rbp
 	pushq %rax
-	movq $0xffffffffffff8000, %rcx
+	// get current task structure
+	movq %rsp, %rcx
+	andq $-32768, %rcx
 	movq TaskStruct_thread(%rcx), %rbx
-	// save rip, rsp, and cr3
+	// save rip, rsp
 	movq %rsp, ThreadStruct_rsp(%rbx)
 	leaq Task_switch_back(%rip), %rax
 	movq %rax, ThreadStruct_rip(%rbx)
 	movq TaskStruct_mem(%rcx), %rbx
-	pushq %rcx
 	pushq %rdi
 	movq %rdi, %rsi
 	movq %rcx, %rdi
 	callq Task_switchTo_inner
-	popq %rsi
+	// now %rdi still stores the task we needed to switch to
 	popq %rdi
 	// set up cr3, rsp and then rip
-	movq TaskStruct_mem(%rsi), %rbx
+	movq TaskStruct_mem(%rdi), %rbx
 	movq TaskMemStruct_pgdPhyAddr(%rbx), %rax
 	movq %cr3, %rbx
 	cmpq %rbx, %rax
+	// if these two task share the same CR3, then no need to switch CR3
 	je TaskMemStruct_switchCR3_end
 	movq %rax, %cr3
 TaskMemStruct_switchCR3_end:
-	movq $0xffffffffffff8000, %rcx
-	movq $0x2, %rax
-	movq %rax, TaskStruct_state(%rcx)
-	movq TaskStruct_thread(%rcx), %rbx
+	movq TaskStruct_thread(%rdi), %rbx
 	movq ThreadStruct_rsp(%rbx), %rsp
 	movq ThreadStruct_rip(%rbx), %rax
 	jmpq *%rax
@@ -58,8 +55,9 @@ ENTRY(Task_kernelThreadEntry)
 ENTRY(Syscall_entry)
 	movq %rsp, %rdx
 	movq %rbp, %r9
-    // switch to kernel stack
-    movq $0xfffffffffffffff0, %rsp
+    // switch to kernel stack, the address is stored in the 
+    movq $0x7ffffffffff0, %rsp
+	movq (%rsp), %rsp
     // save the registers
     movq %es, %rax
     pushq %rax

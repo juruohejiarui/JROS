@@ -62,9 +62,7 @@ typedef struct MADTDescriptor {
 	} __attribute__ ((packed)) entries[0];
 } MADTDescriptor;
 
-#define SMP_CPUInfo_flag_InTaskLoop (1ul << 0)
 #define SMP_CPUInfo_flag_APUInited	(1ul << 1)
-#define SMP_CPUInfo_flag_WaitTask	(1ul << 2)
 
 typedef struct SMP_CPUInfoPkg {
 	// the topo index of this processor
@@ -93,11 +91,15 @@ extern u8 SMP_APUBootEnd[];
 
 extern SMP_CPUInfoPkg SMP_cpuInfo[Hardware_CPUNumber];
 extern int SMP_cpuNum;
-extern Atomic SMP_task0LaunchNum, SMP_initCpuNum;
+extern Atomic SMP_initCpuNum;
 
-#define SMP_current (SMP_getCPUInfoPkg(SMP_task0LaunchNum.value == SMP_cpuNum ? Task_current->cpuId : SMP_getCurCPUIndex()))
+#define SMP_current (SMP_getCPUInfoPkg(Task_current->cpuId))
 
+// initialize the structure and descriptors
 void SMP_init();
+
+// launch APUs and the init task for each of them.
+void SMP_initAPU();
 
 void SMP_sendIPI(int cpuId, u32 vector, void *msg);
 void SMP_sendIPI_all(u32 vector, void *msg);

@@ -12,7 +12,7 @@ u32 _cpuApicId[Hardware_CPUNumber];
 SpinLock _lock;
 int SMP_cpuNum;
 u32 trIdxCnt, SMP_bspIdx, _bspx2ApicId;
-Atomic SMP_task0LaunchNum, SMP_initCpuNum;
+Atomic SMP_initCpuNum;
 
 static u32 _cvtId(u32 x2apicID) {
 	// SMP not enabled
@@ -39,6 +39,7 @@ u32 SMP_registerCPU(u32 x2apicID, u32 apicID) {
         pkg->tssTable = tss64Table;
 		pkg->idtTblSize = 512 * 8;
 		pkg->idtTable = idtTable;
+		pkg->initStk = (u64 *)Task_current;
 		// mask the traps and interrupts
 		SMP_maskIntr(0, 0, 0x40);
 		SMP_maskIntr(0, 0x80, 0x80);
@@ -133,8 +134,7 @@ static int _parseMADT() {
 
 // schedule interrupt
 IntrHandlerDeclare(SMP_irq0xc8Handler) {
-	// if (SMP_getCurCPUIndex() != 0) printk(WHITE, BLACK, "I%d", SMP_getCurCPUIndex());
-	if (SMP_current->flags & SMP_CPUInfo_flag_InTaskLoop) Task_updateCurState();
+	if (Task_cfsStruct.flags) Task_updateCurState();
 }
 
 void SMP_init() {
@@ -162,8 +162,11 @@ void SMP_init() {
 	if (!res) { printk(RED, BLACK, "SMP: unable to get the processor map.\n"); return ; }
 	printk(WHITE, BLACK, "SMP: BSP Idx=%d\n", SMP_bspIdx);
 	IO_sti();
+}
 
-    printk(WHITE, BLACK, "SMP: copy byte:%#010lx\n", (u64)&SMP_APUBootEnd - (u64)&SMP_APUBootStart);
+void SMP_initAPU() {
+	printk(RED, BLACK, "SMP_initAPU()\n");
+	printk(WHITE, BLACK, "SMP: copy byte:%#010lx\n", (u64)&SMP_APUBootEnd - (u64)&SMP_APUBootStart);
     memcpy(SMP_APUBootStart, DMAS_phys2Virt(0x20000), (u64)&SMP_APUBootEnd - (u64)&SMP_APUBootStart);
 
 	APIC_ICRDescriptor icr;
@@ -175,6 +178,8 @@ void SMP_init() {
 	icr.level = HW_APIC_Level_Assert;
 	icr.triggerMode = HW_APIC_TriggerMode_Edge;
 	icr.DestShorthand = HW_APIC_DestShorthand_AllExcludingSelf;
+
+	Intr_register(0xc8, NULL, SMP_irq0xc8Handler, 0, NULL, "SMP IPI 0xc8");
 	
 	HW_APIC_writeICR(*(u64 *)&icr);
 	printk(WHITE, BLACK, "SMP: init-IPI (value=%#018lx) sent to all APs ...\n", *(u64 *)&icr);
@@ -190,13 +195,11 @@ void SMP_init() {
 		
 		while (SMP_initCpuNum.value == prev) {
 			printk(WHITE, BLACK, "waiting...(%d s)\r", (HW_Timer_HPET_jiffies() - st) / 1000);
-			// IO_hlt();
+			IO_hlt();
 		}
 		printk(WHITE, BLACK, "SMP: finish initalize CPU %d\n", i);
-		// Intr_SoftIrq_Timer_mdelay(10);
 	}
 	MM_PageTable_cleanTmpMap();
-	Intr_register(0xc8, NULL, SMP_irq0xc8Handler, 0, NULL, "SMP IPI 0xc8");
 }
 
 void SMP_sendIPI(int cpuId, u32 vector, void *msg) {

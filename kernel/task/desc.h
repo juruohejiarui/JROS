@@ -27,11 +27,8 @@ extern char* kallsyms_names __attribute__((weak));
 #define Task_State_Sleeping         (1 << 2)
 
 #define Task_userStackEnd       0x00007ffffffffff0ul
-#define Task_kernelStackEnd     0xfffffffffffffff0ul
-#define Task_intrStackEnd	   	0xffffffffffff8000ul
 #define Task_userStackSize      0x0000000000fffff0ul // 32M
-#define Task_kernelStackSize    0x0000000000007ff0ul // 32K
-#define Task_intrStackSize		0x0000000000008000ul // 32K
+#define Task_kernelStackSize    0x0000000000008000ul // 32K
 #define Task_userBrkStart       0x0000000000100000ul
 #define Task_kernelBrkStart     0xffff800000000000ul
 
@@ -40,6 +37,8 @@ extern char* kallsyms_names __attribute__((weak));
 #define Task_Priority_Sleeping  3
 #define Task_Priority_Trapped   4
 #define Task_Priority_Killed    5
+
+#define Task_KrlPagePhyAddr	0x101000
 
 typedef struct Task_KmallocUsage {
 	List listEle;
@@ -50,9 +49,9 @@ typedef struct Task_KmallocUsage {
 
 typedef struct TaskMemStruct {
     u64 pgdPhyAddr;
-    u64 totUsage;
+    u64 totUsage, krnlSyncJiffies;
     List pageUsage, kmallocUsage;
-    Page *intrPage, *tskPage;
+	Page *krlStkPage;
 } TaskMemStruct;
 
 typedef struct ThreadStruct {
@@ -95,7 +94,7 @@ typedef struct TaskStruct {
 	TSS *tss;
     u64 flags;
     i64 vRunTime, resRunTime;
-	i32 pid, cpuId;
+	u64 pid, cpuId;
 	u64 signal, priority;
 
 	RBTree timerTree;
@@ -108,7 +107,6 @@ typedef struct TaskStruct {
 	u64 signalHandlerParam[Task_signalNum];
 
     SIMD_XsaveArea *simdRegs;
-	struct TaskStruct *dmasPtr;
 } __attribute__((packed)) TaskStruct; 
 
 union TaskUnion {

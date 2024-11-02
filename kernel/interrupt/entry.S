@@ -64,7 +64,10 @@ ENTRY(restoreAll)
 retFromException:
 ENTRY(Intr_retFromIntr)
     call Task_schedule
-	callq SMP_getCurCPUIndex
+	// get CPU_ID of current task
+	movq %rsp, %rax
+	andq $-32768, %rax
+	movq 0x50(%rax), %rax
     movq $-1, %rcx
     leaq Intr_SoftIrq_state(%rip), %rbx
 	testq (%rbx, %rax, 8), %rcx

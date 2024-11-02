@@ -65,12 +65,16 @@ SIMD_XsaveArea *SIMD_allocXsaveArea(u64 kmallocArg, void (*destructor)(void *)) 
 // switch the SIMD registers of the current CPU to the current task
 void SIMD_switchToCur() {
 	SMP_CPUInfoPkg *info = SMP_current;
-	if (info->simdRegDomain == Task_currentDMAS()) return ; 
+	if (info->simdRegDomain == Task_current) return ; 
 	if (info->simdRegDomain) {
-		SIMD_xsave(info->simdRegDomain->simdRegs);
+		if (info->simdRegDomain->simdRegs) SIMD_xsave(info->simdRegDomain->simdRegs);
+		if (!Task_current->simdRegs) {
+			Task_current->simdRegs = SIMD_allocXsaveArea(Slab_Flag_Clear | Slab_Flag_Private, NULL);
+			SIMD_xsave(Task_current->simdRegs);
+		}
 		SIMD_xrstor(Task_current->simdRegs);
 	}
-	info->simdRegDomain = Task_currentDMAS();
+	info->simdRegDomain = Task_current;
 	Task_current->flags |= Task_Flag_UseFloat;
 }
 

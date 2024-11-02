@@ -8,6 +8,7 @@ struct CFS_rq {
     RBTree tree[Hardware_CPUNumber], killedTree;
 	SpinLock lock[Hardware_CPUNumber], killedTreeLock;
 	Atomic taskNum[Hardware_CPUNumber];
+	// whether the task schedule is enabled
 	u64 flags;
 	Atomic killedTaskNum;
 	Atomic recycTskState;
@@ -15,7 +16,6 @@ struct CFS_rq {
 extern struct CFS_rq Task_cfsStruct;
 
 extern TSS Init_TSS[Hardware_CPUNumber];
-extern TaskStruct Init_taskStruct;
 
 extern int Task_pidCounter;
 
@@ -51,10 +51,15 @@ void Task_schedule();
 
 void Task_switch(TaskStruct *next);
 
-// the current task
-#define Task_current ((TaskStruct *)(Task_kernelStackEnd - Task_kernelStackSize))
+void Task_buildInitTask(u64 cpuId);
 
-static __always_inline__ TaskStruct *Task_currentDMAS() { return Task_current->dmasPtr; }
+// the current task
+static __always_inline__ TaskStruct *Task_getCurrent() {
+	register TaskStruct *task;
+	__asm__ volatile ( " andq %%rsp, %0		\n\t" : "=r"(task) : "0"(~32767ul) : "memory");
+	return task;
+}
+#define Task_current Task_getCurrent()
 
 void Task_exit(int retVal);
 
@@ -108,7 +113,9 @@ static __always_inline__ void Task_kernelThreadExit(int retVal) {
 	);
 }
 
+// initialize the management struct (CFS and counters)
 void Task_initMgr();
+// build task0
 void Task_init();
 
 #endif

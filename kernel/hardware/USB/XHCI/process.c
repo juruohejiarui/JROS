@@ -454,7 +454,7 @@ void HW_USB_XHCI_devMgrTask_int(u64 signal, XHCI_Device *dev) {
 void HW_USB_XHCI_devMgrTask(XHCI_Device *dev, u64 rootPort) {
 	Task_kernelEntryHeader();
 	Task_setSignalHandler(Task_current, Task_Signal_Int, (Task_SignalHandler)HW_USB_XHCI_devMgrTask_int, (u64)dev);
-	dev->mgrTask = Task_currentDMAS();
+	dev->mgrTask = Task_current;
 	int speed = (HW_USB_XHCI_readPortReg(dev->host, rootPort, XHCI_PortReg_sc) >> 10) & ((1 << 4) - 1);
 	printk(YELLOW, BLACK, "dev:%#018lx port:%d speed:%d\n", dev, rootPort, speed);
 	// enable a slot for this device
@@ -592,7 +592,7 @@ void HW_USB_XHCI_devMgrTask(XHCI_Device *dev, u64 rootPort) {
 		}
 		SpinLock_unlock(&HW_USB_XHCI_DriverListLock);
 		IO_sti();
-		Intr_SoftIrq_Timer_mdelay(dev->slotId * 10);
+		Intr_SoftIrq_Timer_mdelay(10);
 	}
 	End:
 	while (1) IO_hlt();

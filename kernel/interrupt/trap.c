@@ -72,7 +72,7 @@ void _backtrace(PtReg *regs) {
 	{
 		if (_lookupKallsyms(ret_address, i))
 			break; 
-		if ((u64)rbp < (u64)regs->rsp || (u64)rbp > Task_kernelStackEnd)
+		if ((u64)rbp < (u64)regs->rsp || (u64)rbp > Task_current->tss->rsp0)
 			break;
 
 		ret_address = *(rbp + 1);
@@ -86,21 +86,15 @@ void Intr_Trap_printRegs(u64 rsp) {
 	for (int i = 0; i < sizeof(PtReg) / sizeof(u64); i++)
 		printk(WHITE, BLACK, "%6s=%#018lx%c", _regName[i], *(u64 *)(rsp + i * 8), (i + 1) % 8 == 0 ? '\n' : ' ');
 	printk(WHITE, BLACK, "processor ID: %d\n", SMP_getCurCPUIndex());
-	if (SMP_current->flags & SMP_CPUInfo_flag_InTaskLoop) _backtrace((PtReg *)rsp);
+	_backtrace((PtReg *)rsp);
 }
 
 void doDivideError(u64 rsp, u64 errorCode) {
 	u64 *p = NULL;
 	p = (u64 *)(rsp + 0x98);
 	printk(RED,BLACK,"do_divide_error(0),ERROR_CODE:%#018lx,RSP:%#018lx,RIP:%#018lx\t" ,errorCode, rsp, *p);
-	if (SMP_current->flags & SMP_CPUInfo_flag_InTaskLoop) {
-		printk(WHITE, BLACK, "pid = %d\n", Task_current->pid);
-		Task_current->priority = Task_Priority_Trapped;
-	} else {
-		printk(WHITE, BLACK, "\n");
-		Intr_Trap_printRegs(rsp);
-		while (1) IO_hlt();
-	}
+	printk(WHITE, BLACK, "pid = %d\n", Task_current->pid);
+	Task_current->priority = Task_Priority_Trapped;
 	IO_sti();
 	while(1) IO_hlt();
 }
@@ -151,14 +145,8 @@ void doUndefinedOpcode(u64 rsp, u64 errorCode) {
 void doDevNotAvailable(u64 rsp, u64 errorCode) {
 	u64 *p = NULL;
 	p = (u64 *)(rsp + 0x98);
-	if (SMP_current->flags & SMP_CPUInfo_flag_InTaskLoop) {
-		// printk(RED,BLACK,"do_device_not_available(7),ERROR_CODE:%#018lx,RSP:%#018lx,RIP:%#018lx\n",errorCode , rsp , *p);
-		SIMD_clrTS();
-		SIMD_switchToCur();
-	} else {
-		printk(RED,BLACK,"do_device_not_available(7),ERROR_CODE:%#018lx,RSP:%#018lx,RIP:%#018lx\n",errorCode , rsp , *p);
-		while (1) IO_hlt();
-	}
+	SIMD_clrTS();
+	SIMD_switchToCur();
 }
 
 void doDoubleFault(u64 rsp, u64 errorCode) {
@@ -243,8 +231,7 @@ void doGeneralProtection(u64 rsp, u64 errorCode) {
 	u64 *p = NULL;
 	p = (u64 *)(rsp + 0x98);
 	printk(RED,BLACK,"do_general_protection(13),ERROR_CODE:%#018lx,RSP:%#018lx,RIP:%#018lx\t",errorCode , rsp , *p);
-	if (SMP_current->flags & SMP_CPUInfo_flag_InTaskLoop) printk(WHITE, BLACK, "pid = %ld\n", Task_current->pid);
-	else printk(WHITE, BLACK, "\n");
+	printk(WHITE, BLACK, "pid = %ld\n", Task_current->pid);
 	if (errorCode & 0x01)
 		printk(RED,BLACK,"The exception occurred during the delivery of an event external to the program, such as an interrupt or an exception.\n");
 	if (errorCode & 0x02)
@@ -294,8 +281,7 @@ void doPageFault(u64 rsp, u64 errorCode) {
 			MM_PageTable_Flag_Presented | MM_PageTable_Flag_Writable | MM_PageTable_Flag_UserPage);
 	} else {
 		printk(RED,BLACK,"do_page_fault(14),ERROR_CODE:%#018lx,RSP:%#018lx,RIP:%#018lx,CR2:%#018lx\t",errorCode , rsp , *p , cr2);
-		if (SMP_current->flags & SMP_CPUInfo_flag_InTaskLoop) printk(WHITE, BLACK, "pid = %ld\n", Task_current->pid);
-		else printk(WHITE, BLACK, "\n");
+		printk(WHITE, BLACK, "pid = %ld\n", Task_current->pid);
 		// blank pldEntry means the page is not mapped
 		Intr_Trap_printRegs(rsp);
 		printk(RED, BLACK, "Invalid entry : %#018lx\n", pldEntry);

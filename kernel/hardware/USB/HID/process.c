@@ -38,7 +38,7 @@ int HW_USB_HID_getReport(XHCI_Device *dev, u8 reportId, u8 interId, u8 *report, 
 			report, repLen);
 	HW_USB_XHCI_Ring_insReq(dev->trRing[0], req);
 	if (HW_USB_XHCI_Req_ringDbWait(dev->host, dev->slotId, 1, 0, req) != XHCI_TRB_CmplCode_Succ) {
-		printk(RED, BLACK, "dev %#018lx: failed to set report, code=%d\n", dev, HW_USB_XHCI_TRB_getCmplCode(&req->res));
+		printk(RED, BLACK, "dev %#018lx: failed to get report, code=%d\n", dev, HW_USB_XHCI_TRB_getCmplCode(&req->res));
 	}
 	int res = HW_USB_XHCI_TRB_getCmplCode(&req->res);
 	kfree(req, Slab_Flag_Private);
@@ -104,6 +104,7 @@ void HW_USB_HID_processMouse(XHCI_Device *dev, XHCI_InterDesc *inter, USB_HID_Pa
 		HW_USB_HID_parseReport(repRaw, helper, rep);
 		printk(WHITE, BLACK, "M b:%d x:%d y:%d w:%d\r", 
 			rep->items.mouse.btn, rep->items.mouse.x, rep->items.mouse.y, rep->items.mouse.wheel);
+		Task_releaseProcessor();
 	}
 }
 
@@ -133,6 +134,7 @@ void HW_USB_HID_processKeyboard(XHCI_Device *dev, XHCI_InterDesc *inter, USB_HID
 				rep->items.keyboard.spK, 
 				rep->items.keyboard.key[0], rep->items.keyboard.key[1], rep->items.keyboard.key[2],
 				rep->items.keyboard.key[3], rep->items.keyboard.key[4], rep->items.keyboard.key[5]);
+		Task_releaseProcessor();
 	}
 }
 
@@ -271,7 +273,7 @@ void HW_USB_HID_process(XHCI_Device *dev) {
 		USB_HID_ParseHelper *helper = HW_USB_HID_mkParseHelper(dev, inters[i].desc, inters[i].hidDesc);
 		inters[i].helper = helper;
 		// set SET_PROTOCOL
-		HW_USB_XHCI_TRB_setData(&req1->trb[0], HW_USB_XHCI_TRB_mkSetup(0x21, 0x0b, 0, inters[i].desc->bInterNum, 0));
+		HW_USB_XHCI_TRB_setData(&req1->trb[0], HW_USB_XHCI_TRB_mkSetup(0x21, 0x0b, 1, inters[i].desc->bInterNum, 0));
 		HW_USB_XHCI_Ring_insReq(dev->trRing[0], req1);
 		if (HW_USB_XHCI_Req_ringDbWait(dev->host, dev->slotId, 1, 0, req1) != XHCI_TRB_CmplCode_Succ) {
 			printk(RED, BLACK, "dev %#018lx: failed to set protocol for interface %d, code=%d\n",
