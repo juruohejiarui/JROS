@@ -140,11 +140,7 @@ void HW_PCIe_MSI_unmaskIntr(PCIe_MSICapability *cap, int intrId);
 void HW_PCIe_MSI_setMsgAddr(PCIe_MSICapability *msi, u32 apicId, int redirect, int destMode);
 void HW_PCIe_MSI_setMsgData(PCIe_MSICapability *msi, u32 vec, u32 deliverMode, u32 level, u32 triggerMode);
 
-static __always_inline__ PCIe_MSIX_Table *HW_PCIe_MSIX_getTable(PCIeConfig *cfg, PCIe_MSIXCapability *cap) {
-	void *tblAddr = DMAS_phys2Virt((*(u64 *)&cfg->type0.bar[PCIe_MSIXCapability_bir(cap)] & ~0xf) + PCIe_MSIXCapability_tblOff(cap));
-    if ((u64)tblAddr >= MM_DMAS_bsSize) MM_PageTable_map(IO_getCR(3), (u64)tblAddr, DMAS_virt2Phys(tblAddr), MM_PageTable_Flag_Presented | MM_PageTable_Flag_Writable);
-    return tblAddr;
-}
+PCIe_MSIX_Table *HW_PCIe_MSIX_getTable(PCIeConfig *cfg, PCIe_MSIXCapability *cap);
 void HW_PCIe_MSIX_setMsgAddr(PCIe_MSIX_Table *tbl, int intrId, u32 apicId, int redirect, int destMode);
 void HW_PCIe_MSIX_setMsgData(PCIe_MSIX_Table *tbl, int intrId, u32 vec, u32 deliverMode, u32 level, u32 triggerMode);
 void HW_PCIe_MSIX_maskIntr(PCIe_MSIX_Table *tbl, int intrId);

@@ -1,5 +1,6 @@
 #include "api.h"
 #include "../../includes/log.h"
+#include "../../includes/task.h"
 
 static List _devList;
 
@@ -26,7 +27,7 @@ NVMe_Host *HW_NVMe_initDevice(PCIeConfig *pciCfg) {
 	printk(WHITE, BLACK, "NVMe: %#018lx: pci:%#018lx regs:%#018lx\n", host, host->pci, host->regs);
 
 	if ((u64)host->regs >= MM_DMAS_bsSize)
-		MM_PageTable_map(getCR3(), (u64)host->regs, DMAS_virt2Phys(host->regs), MM_PageTable_Flag_Presented | MM_PageTable_Flag_Writable);
+		Task_mapKrlPage((u64)host->regs, DMAS_virt2Phys(host->regs), MM_PageTable_Flag_Presented | MM_PageTable_Flag_Writable);
 	return NULL;
 }
 

@@ -129,11 +129,18 @@ void HW_USB_XHCI_init(PCIeManager *pci) {
 	{
 		u64 phyAddr = (pci->cfg->type0.bar[0] | (((u64)pci->cfg->type0.bar[1]) << 32)) & ~0xful;
 		host->capRegAddr = (u64)DMAS_phys2Virt(phyAddr);
-		if (phyAddr >= MM_DMAS_bsSize) MM_PageTable_map2M(getCR3(), host->capRegAddr, phyAddr, MM_PageTable_Flag_Presented);
+		if (phyAddr >= MM_DMAS_bsSize) Task_mapKrlPage((u64)DMAS_phys2Virt(phyAddr), phyAddr, MM_PageTable_Flag_Presented | MM_PageTable_Flag_Writable);
 	}
+	#define AttemptMap(addr) do { \
+		if (DMAS_virt2Phys(addr) >= MM_DMAS_bsSize) Task_mapKrlPage((u64)(addr), DMAS_virt2Phys(addr), MM_PageTable_Flag_Presented | MM_PageTable_Flag_Writable); \
+	} while (0)
+	AttemptMap(host->capRegAddr);
 	host->opRegAddr = host->capRegAddr + HW_USB_XHCI_CapReg_capLen(host);
+	AttemptMap(host->opRegAddr);
 	host->rtRegAddr = host->capRegAddr + HW_USB_XHCI_CapReg_rtsOff(host);
+	AttemptMap(host->rtRegAddr);
 	host->dbRegAddr = host->capRegAddr + HW_USB_XHCI_CapReg_dbOffset(host);
+	AttemptMap(host->dbRegAddr);
 	printk(WHITE, BLACK, "XHCI: %#018lx: maxSlot:%d maxIntr:%d maxPort:%d maxScrSz:%d maxERST:%d\n", 
 		host, HW_USB_XHCI_maxSlot(host), HW_USB_XHCI_maxIntr(host), HW_USB_XHCI_maxPort(host), HW_USB_XHCI_maxScrSz(host), HW_USB_XHCI_maxERST(host));
 	printk(WHITE, BLACK, "\tcapReg:%#018lx opReg:%#018lx rtReg:%#018lx dbReg:%#018lx msi:%#018lx msix:%#018lx\n", 
