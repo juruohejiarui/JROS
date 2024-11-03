@@ -177,8 +177,8 @@ void SMP_initAPU() {
 	icr.DestShorthand = HW_APIC_DestShorthand_AllExcludingSelf;
 
 	Intr_register(0xc8, NULL, SMP_irq0xc8Handler, 0, NULL, "SMP IPI 0xc8");
-	
 	HW_APIC_writeICR(*(u64 *)&icr);
+	Intr_SoftIrq_Timer_mdelay(100);
 	printk(WHITE, BLACK, "SMP: init-IPI (value=%#018lx) sent to all APs ...\n", *(u64 *)&icr);
 	u64 st = HW_Timer_HPET_jiffies();
 	for (int i = 0; i < SMP_cpuNum; i++) if (i != SMP_bspIdx) {
