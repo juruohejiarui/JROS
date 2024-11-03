@@ -93,7 +93,7 @@ extern SMP_CPUInfoPkg SMP_cpuInfo[Hardware_CPUNumber];
 extern int SMP_cpuNum;
 extern Atomic SMP_initCpuNum;
 
-#define SMP_current (SMP_getCPUInfoPkg(Task_current->cpuId))
+#define SMP_current (&SMP_cpuInfo[Task_current->cpuId])
 
 // initialize the structure and descriptors
 void SMP_init();

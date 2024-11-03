@@ -5,7 +5,8 @@
 
 int Task_pidCounter;
 
-Atomic Task_krnlPgTblSyncJiffies;
+Atomic Task_krlPgTblSyncJiffies;
+SpinLock Task_krlPgTblLock;
 
 extern u8 Init_stack[32768];
 
@@ -29,10 +30,11 @@ struct CFS_rq Task_cfsStruct;
 void Task_switchTo_inner(TaskStruct *prev, TaskStruct *next) {
     SMP_CPUInfoPkg *info = SMP_current;
     // printk(RED, BLACK, "From %#018lx, to %#018lx, rip: %#018lx\n", prev, next, next->thread->rip);
-    Intr_Gate_setTSS(
-            info->tssTable,
-            next->tss->rsp0, next->tss->rsp1, next->tss->rsp2, next->tss->ist1, next->tss->ist2,
-			next->tss->ist3, next->tss->ist4, next->tss->ist5, next->tss->ist6, next->tss->ist7);
+    // Intr_Gate_setTSSstruct(SMP_current->tssTable, next->tss);
+	register TSS *tss = (TSS *)SMP_current->tssTable;
+	tss->rsp0 = next->tss->rsp0;
+	tss->ist1 = next->tss->ist1;
+	tss->ist2 = next->tss->ist2;
 	if (prev) {
 		__asm__ volatile ( "movq %%fs, %0 \n\t" : "=a"(prev->thread->fs));
     	__asm__ volatile ( "movq %%gs, %0 \n\t" : "=a"(prev->thread->gs));
@@ -125,8 +127,6 @@ void Task_defaultSignalHandler(u64 signal) {
 	}
 }
 
-
-
 void Task_setSignalHandler(TaskStruct *task, u64 signal, Task_SignalHandler handler, u64 param) {
 	if (signal < 32) task->signalHandlerParam[signal] = param;
 	task->signalHandler[signal] = handler;
@@ -199,8 +199,6 @@ static void *_argWrap(void *arg1, u64 arg2) {
 	return argPkg;
 }
 void Task_buildInitTask(u64 cpuId) {
-	u64 rsp = 0;
-	__asm__ volatile ("movq %%rsp, %0" : "=m"(rsp));
 	TaskStruct *task = Task_current;
 	memset(task, 0, sizeof(TaskStruct) + sizeof(ThreadStruct) + sizeof(TaskMemStruct) + sizeof(TSS));
 	
@@ -270,7 +268,7 @@ TaskStruct *Task_createTask(Task_Entry entry, void *arg1, u64 arg2, u64 flag) {
 
 	memset(task->tss, 0, sizeof(TSS));
 	{
-		u64 rsp = (u64)task + Task_kernelStackSize - 10;
+		u64 rsp = (u64)task + Task_kernelStackSize;
     	// execption stack pointer
 		task->tss->ist1 = task->tss->ist2 = task->tss->ist3 = task->tss->ist4 = task->tss->ist5 = task->tss->ist6 = task->tss->ist7 = rsp;
 		// interrupt stack pointer
@@ -308,9 +306,10 @@ TaskStruct *Task_createTask(Task_Entry entry, void *arg1, u64 arg2, u64 flag) {
 			MM_Buddy_free(krlStkPage);
 		}
 		task->mem->pgdPhyAddr = pgd;
-		task->mem->krnlSyncJiffies = Task_krnlPgTblSyncJiffies.value;
 		// make a copy of kernel page table
+		SpinLock_lock(&Task_krlPgTblLock);
 		memcpy(DMAS_phys2Virt(Task_KrlPagePhyAddr), DMAS_phys2Virt(pgd), sizeof(u64) * 512);
+		SpinLock_unlock(&Task_krlPgTblLock);
 	}
 
 	memcpy(&regs, (void *)((u64)task + Task_kernelStackSize - sizeof(PtReg)), sizeof(PtReg));
@@ -345,6 +344,28 @@ int Task_getRing() {
     u64 cs;
     __asm__ volatile ("movq %%cs, %0" : "=a"(cs));
     return cs & 3;
+}
+
+void Task_syncKrlPageTable() {
+	if (Task_userSpaceManage()->krlPgTblJiffies == Task_krlPgTblSyncJiffies.value) return ;
+	SpinLock_lock(&Task_krlPgTblLock);
+	memcpy(DMAS_phys2Virt(Task_KrlPagePhyAddr + 256 * sizeof(u64)), DMAS_phys2Virt(Task_current->mem->pgdPhyAddr + 256 * sizeof(u64)), 256 * sizeof(u64));
+	Task_userSpaceManage()->krlPgTblJiffies = Task_krlPgTblSyncJiffies.value;
+	SpinLock_unlock(&Task_krlPgTblLock);
+}
+
+void Task_mapKrlPage(u64 vAddr, u64 pAddr, u64 flags) {
+	SpinLock_lock(&Task_krlPgTblLock);
+	Atomic_inc(&Task_krlPgTblSyncJiffies);
+	MM_PageTable_map(Task_KrlPagePhyAddr, vAddr, pAddr, flags);
+	SpinLock_unlock(&Task_krlPgTblLock);
+}
+
+void Task_unmapKrlPage(u64 vAddr) {
+	SpinLock_lock(&Task_krlPgTblLock);
+	Atomic_inc(&Task_krlPgTblSyncJiffies);
+	MM_PageTable_unmap(Task_KrlPagePhyAddr, vAddr);
+	SpinLock_unlock(&Task_krlPgTblLock);
 }
 
 __always_inline__ void Task_kernelEntryHeader() {
@@ -412,4 +433,6 @@ void Task_initMgr() {
 	Task_cfsStruct.killedTaskNum.value = 0;
 	Task_cfsStruct.recycTskState.value = 0;
 	Task_pidCounter = 0;
+
+	SpinLock_init(&Task_krlPgTblLock);
 }

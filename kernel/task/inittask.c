@@ -29,18 +29,17 @@ void Task_keyboardEvent(void *arg1, u64 arg2) {
 	Task_kernelThreadExit(0);
 }
 
-void task_empty(void *arg1, u64 arg2) {
-	Task_kernelEntryHeader();
-	Task_current->priority = Task_Priority_Trapped;
-	while (1) IO_hlt();
-	Task_kernelThreadExit(1);
-}
-
 void init(u64 (*usrEntry)(void *, u64), u64 *argPtr) {
 	Task_kernelEntryHeader();
 	void *arg1 = (void *)argPtr[0];
 	u64 arg2 = argPtr[1];
 	kfree(argPtr, 0);
+	Page *pg = MM_Buddy_alloc(0, Page_Flag_Kernel);
+	MM_PageTable_map(getCR3(), Task_userStackEnd - Task_userStackSize, pg->phyAddr, MM_PageTable_Flag_Presented | MM_PageTable_Flag_Writable);
+	flushTLB();
+	Task_UserSpaceManage *usrManage = (void *)(Task_userStackEnd - Task_userStackSize);
+	usrManage->tsk = Task_current;
+	Task_syncKrlPageTable();
     Task_switchToUsr(usrEntry, arg1, arg2);
     Task_kernelThreadExit(0);
 }
@@ -51,14 +50,15 @@ void recur(u64 arg, int dep) {
 	else printk(WHITE, BLACK, "user task %2d\t", arg);
 }
 void usrInit(void *arg1, u64 arg2) {
-    // printk(WHITE, BLACK, "User level task is running, arg = %ld\n", arg);
-    while (1) {
-		Task_Syscall_usrAPI(2, 2000, 0, 0, 0, 0, 0);
+    printk(WHITE, BLACK, "User level task is running, arg = %ld\n", arg2);
+    for (int i = 0; i < arg2 * 5; i++) {
+		Task_Syscall_usrAPI(2, 1000, 0, 0, 0, 0, 0);
 		if (arg2 % 5 == 0) recur(arg2, 0);
 		else printk(WHITE, BLACK, "user task %2d\t", arg2);
 		float i = arg2 / 17.0;
 		// IO_hlt();
 	}
+	Task_Syscall_usrAPI(3, 0, 0, 0, 0, 0, 0);
 }
 
 void task0(void *arg1, u64 arg2) {
@@ -69,7 +69,6 @@ void task0(void *arg1, u64 arg2) {
 				*recycTask = Task_createTask(Task_recycleThread, NULL, 0, Task_Flag_Kernel | Task_Flag_Inner);
 	HW_initAdvance();
 	// for (int i = 0; i < 20; i++) Task_createTask(usrInit, NULL, i, Task_Flag_Inner);
-	// for (int i = 0; i < 20; i++) Task_createTask(task_empty, NULL, 0, Task_Flag_Inner | Task_Flag_Kernel);
 	while (1) IO_hlt();
 	Task_kernelThreadExit(0);
 }

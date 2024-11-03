@@ -28,6 +28,7 @@ extern char* kallsyms_names __attribute__((weak));
 
 #define Task_userStackEnd       0x00007ffffffffff0ul
 #define Task_userStackSize      0x0000000000fffff0ul // 32M
+#define Task_userStackStart		0x00007fffff000000ul
 #define Task_kernelStackSize    0x0000000000008000ul // 32K
 #define Task_userBrkStart       0x0000000000100000ul
 #define Task_kernelBrkStart     0xffff800000000000ul
@@ -49,7 +50,7 @@ typedef struct Task_KmallocUsage {
 
 typedef struct TaskMemStruct {
     u64 pgdPhyAddr;
-    u64 totUsage, krnlSyncJiffies;
+    u64 totUsage;
     List pageUsage, kmallocUsage;
 	Page *krlStkPage;
 } TaskMemStruct;
@@ -107,7 +108,13 @@ typedef struct TaskStruct {
 	u64 signalHandlerParam[Task_signalNum];
 
     SIMD_XsaveArea *simdRegs;
-} __attribute__((packed)) TaskStruct; 
+} __attribute__((packed)) TaskStruct;
+
+typedef struct Task_UserSpaceManage {
+	TaskStruct *tsk;
+	u64 krlPgTblJiffies;
+	
+} __attribute__ ((packed)) Task_UserSpaceManage;
 
 union TaskUnion {
     TaskStruct task;

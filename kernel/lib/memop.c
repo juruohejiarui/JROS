@@ -25,8 +25,7 @@ void *memset(void *addr, u8 dt, i64 size) {
 	return addr;
 }
 
-void *memcpy(void *src, void *dst, i64 num)
-{
+void *memcpy(void *src, void *dst, i64 num) {
 	int d0, d1, d2;
 	__asm__ volatile(
 		"cld				\n\t"

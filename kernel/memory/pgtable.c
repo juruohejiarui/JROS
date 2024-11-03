@@ -136,10 +136,10 @@ void MM_PageTable_map(u64 cr3, u64 vAddr, u64 pAddr, u64 flag) {
     if (*entry == 0) *entry = MM_PageTable_alloc() | 0x7;
     entry = (u64 *)DMAS_phys2Virt(*entry & ~0xffful) + _getPudIndex(vAddr);
     if (*entry == 0) *entry = MM_PageTable_alloc() | 0x7;
-	if (*entry & 0x80) return ;
+	else if (*entry & 0x80) return ;
     entry = (u64 *)DMAS_phys2Virt(*entry & ~0xffful) + _getPmdIndex(vAddr);
     if (*entry == 0) *entry = MM_PageTable_alloc() | 0x7;
-	if (*entry & 0x80) return ;
+	else if (*entry & 0x80) return ;
     entry = (u64 *)DMAS_phys2Virt(*entry & ~0xffful) + _getPldIndex(vAddr);
     *entry = pAddr | flag;
 }

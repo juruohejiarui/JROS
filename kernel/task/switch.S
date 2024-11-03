@@ -55,9 +55,10 @@ ENTRY(Task_kernelThreadEntry)
 ENTRY(Syscall_entry)
 	movq %rsp, %rdx
 	movq %rbp, %r9
-    // switch to kernel stack, the address is stored in the 
-    movq $0x7ffffffffff0, %rsp
+    // switch to kernel stack, the address is in user space management
+	andq $-0x1000000, %rsp
 	movq (%rsp), %rsp
+	addq $32768, %rsp
     // save the registers
     movq %es, %rax
     pushq %rax
@@ -71,9 +72,9 @@ ENTRY(Syscall_entry)
 	movq %rax, %ds
 	movq %rax, %es
     callq Syscall_handler
-	jmp Syscall_exit
+	jmp Syscall_backToUsr
 
-ENTRY(Syscall_exit)
+ENTRY(Syscall_backToUsr)
 	popq %rdx	// user rsp
 	popq %r9	// user rbp
     popq %r11
@@ -86,6 +87,4 @@ ENTRY(Syscall_exit)
 	// switch back to user stack
 	movq %rdx, %rsp
 	movq %r9, %rbp
-    sysretq
-
-	
+    sysretq	

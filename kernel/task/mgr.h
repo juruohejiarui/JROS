@@ -53,6 +53,12 @@ void Task_switch(TaskStruct *next);
 
 void Task_buildInitTask(u64 cpuId);
 
+void Task_syncKrlPageTable();
+void Task_mapKrlPage(u64 vAddr, u64 pAddr, u64 flags);
+void Task_unmapKrlPage(u64 vAddr);
+
+static __always_inline__ Task_UserSpaceManage *Task_userSpaceManage() { return (Task_UserSpaceManage *)(Task_userStackEnd - Task_userStackSize); }
+
 // the current task
 static __always_inline__ TaskStruct *Task_getCurrent() {
 	register TaskStruct *task;

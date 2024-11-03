@@ -69,10 +69,7 @@ void Intr_Gate_setTSS(
 }
 
 void Intr_Gate_setTSSstruct(u32 *tss64Table, TSS *tssStruct) {
-    Intr_Gate_setTSS(
-        tss64Table,
-        tssStruct->rsp0, tssStruct->rsp1, tssStruct->rsp2, tssStruct->ist1, tssStruct->ist2,
-        tssStruct->ist3, tssStruct->ist4, tssStruct->ist5, tssStruct->ist6, tssStruct->ist7);
+    memcpy(tssStruct, tss64Table, sizeof(TSS));
 }
 
 void Intr_Gate_setTSSDesc(u64 idx, u32 *tssAddr) {

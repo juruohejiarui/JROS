@@ -40,11 +40,6 @@ u32 SMP_registerCPU(u32 x2apicID, u32 apicID) {
 		pkg->idtTblSize = 512 * 8;
 		pkg->idtTable = idtTable;
 		pkg->initStk = (u64 *)Task_current;
-		// mask the traps and interrupts
-		SMP_maskIntr(0, 0, 0x40);
-		SMP_maskIntr(0, 0x80, 0x80);
-		// for each processor, there are 64 spare vectors for pci and other purposes. from 0x40 to 0x7f
-		SMP_bspIdx = SMP_cpuNum - 1;
     } else {
 		u32 trIdx = trIdxCnt;
 		trIdxCnt += 2;
@@ -54,9 +49,11 @@ u32 SMP_registerCPU(u32 x2apicID, u32 apicID) {
 		pkg->idtTblSize = 512 * 8;
 		pkg->idtTable = kmalloc(512 * 8, 0, NULL);
 		memcpy(idtTable, pkg->idtTable, 512 * 8);
-		memcpy(SMP_cpuInfo[0].intrMsk, pkg->intrMsk, sizeof(u64) * 4);
 		Intr_Gate_setTSSDesc(pkg->trIdx, pkg->tssTable);
     }
+	// for each processor, there are 64 spare vectors for pci and other purposes. from 0x40 to 0x7f
+	SMP_maskIntr(SMP_cpuNum - 1, 0, 0x40);
+	SMP_maskIntr(SMP_cpuNum - 1, 0x80, 0x80);
 	// printk(YELLOW, BLACK, "register x2apic=%d with idx=%d\n", x2apicID, SMP_cpuNum - 1);
     return SMP_cpuNum - 1;
 }

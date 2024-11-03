@@ -274,9 +274,9 @@ void doPageFault(u64 rsp, u64 errorCode) {
 		flushTLB();
 	} else if (_isStkGrow(cr2, ((PtReg *)rsp)->rsp)) {
 		Page *page = MM_Buddy_alloc(0, Page_Flag_Active);
-
+		// printk(YELLOW,BLACK,"do_page_fault(14),ERROR_CODE:%#018lx,RSP:%#018lx,RIP:%#018lx,CR2:%#018lx\t",errorCode , rsp , *p , cr2);
 		// printk(BLACK, WHITE, "[Trap] Task %d need one stack page %#018lx->%#018lx\n", Task_current->pid, page->phyAddr, cr2 & ~0xffful);
-
+		if (Task_current->mem->pgdPhyAddr != getCR3()) IO_hlt();
 		MM_PageTable_map(getCR3(), cr2 & ~0xffful, page->phyAddr, 
 			MM_PageTable_Flag_Presented | MM_PageTable_Flag_Writable | MM_PageTable_Flag_UserPage);
 	} else {
