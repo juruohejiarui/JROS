@@ -5,7 +5,7 @@
 
 List HW_USB_UHCI_mgrList;
 
-static void _detect(USB_UHCIController *ctrl) {
+static int _detect(USB_UHCIController *ctrl) {
 	// do reset 5 times
 	for (int i = 0; i < 5; i++) {
 		IO_out16(ctrl->ioRegAddr + HW_USB_UHCI_ioReg_cmd, 0x0004);
@@ -14,20 +14,21 @@ static void _detect(USB_UHCIController *ctrl) {
 	}
 	if (IO_in16(ctrl->ioRegAddr + HW_USB_UHCI_ioReg_cmd) != 0x0000) {
 		printk(RED, BLACK, "UHCI ERROR: reset failed\n");
-		while (1) IO_hlt();
+		return -1;
 	}
 	if (IO_in16(ctrl->ioRegAddr + HW_USB_UHCI_ioReg_status) != 0x0020) {
 		printk(RED, BLACK, "UHCI ERROR: invalid status\n");
-		while (1) IO_hlt();
+		return -1;
 	}
 	IO_out16(ctrl->ioRegAddr + HW_USB_UHCI_ioReg_status, 0x00ff);
 	if (IO_in16(ctrl->ioRegAddr + HW_USB_UHCI_ioReg_frModSt) != 0x40) {
 		printk(RED, BLACK, "UHCI ERROR: invalid start of frame modify %#06x\n", IO_in16(ctrl->ioRegAddr + HW_USB_UHCI_ioReg_frModSt));
-		while (1) IO_hlt();
+		return -1;
 	}
 	// host control reset
 	IO_out16(ctrl->ioRegAddr + HW_USB_UHCI_ioReg_cmd, 0x0002);
-	while (IO_in16(ctrl->ioRegAddr + HW_USB_UHCI_ioReg_cmd) & 0x0002) Intr_SoftIrq_Timer_mdelay(5);	
+	while (IO_in16(ctrl->ioRegAddr + HW_USB_UHCI_ioReg_cmd) & 0x0002) Intr_SoftIrq_Timer_mdelay(5);
+	return 0;
 }
 
 static void _setup(USB_UHCIController *ctrl) {
@@ -77,7 +78,11 @@ void HW_USB_UHCI_init(PCIeConfig *uhci) {
 	printk(WHITE, BLACK, "Power Status:%04x Power Control:%04x\n", ctrl->pwRegs->powerStatus, ctrl->pwRegs->powerCtrl);
 	// get I/O registers
 	ctrl->ioRegAddr = uhci->type0.bar[4] & 0xfffc;
-	_detect(ctrl);
+	int status = _detect(ctrl);
+	if (!status) {
+		kfree(ctrl, 0);
+		return ;
+	}
 	_setup(ctrl);
 
 	// check port x

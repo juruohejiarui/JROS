@@ -51,6 +51,11 @@ typedef struct APIC_ICRDescriptor {
 
 void HW_APIC_ICRDescriptor_setDesc(APIC_ICRDescriptor *icr, u32 apicId, u32 x2apicId);
 
+// read the APIC ID register, 
+// if local APIC support x2apic, then return the x2apic ID
+// else return apic ID 
+u32 HW_APIC_getAPICID();
+
 // delivery mode
 #define HW_APIC_DeliveryMode_Fixed 			0x0
 #define HW_APIC_DeliveryMode_LowestPriority 0x1

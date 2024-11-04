@@ -21,6 +21,11 @@ void HW_APIC_ICRDescriptor_setDesc(APIC_ICRDescriptor *icr, u32 apicId, u32 x2ap
 	else icr->dest.apic = apicId;
 }
 
+u32 HW_APIC_getAPICID() {
+	if (HW_APIC_supportFlag & HW_APIC_supportFlag_X2APIC) return (u32) IO_readMSR(0x802);
+	else return *(u32 *)DMAS_phys2Virt(0xfee00020);
+}
+
 u64 Hardware_APIC_getReg_IA32_APIC_BASE() { return IO_readMSR(0x1b); }
 
 void HW_APIC_setReg_IA32_APIC_BASE(u64 value) { IO_writeMSR(0x1b, value); }

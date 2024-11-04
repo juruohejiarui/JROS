@@ -147,8 +147,8 @@ void HW_USB_XHCI_init(PCIeManager *pci) {
 		host->msiCapDesc, host->msixCapDesc);
 
 	// check if the host controller support neccessary feature
-	if (HW_USB_XHCI_readOpReg(host, XHCI_OpReg_pgSize) != 0x1) {
-		printk(RED, BLACK, "XHCI: %#018lx: no support for 4K page\n", host);
+	if (!(HW_USB_XHCI_readOpReg(host, XHCI_OpReg_pgSize) & 0x1)) {
+		printk(RED, BLACK, "XHCI: %#018lx: no support for 4K page, pgSize reigster=%#010x\n", host, HW_USB_XHCI_readOpReg(host, XHCI_OpReg_pgSize));
 		kfree(host, 0);
 		return ;
 	}
