@@ -229,9 +229,10 @@ void Task_buildInitTask(u64 cpuId) {
 
 	task->resRunTime = 20;
 
+	task->simdRegs = NULL;
+
 	// set cfsStruct
 	Task_cfsStruct.taskNum[cpuId].value = 1;
-	SMP_current->flags = SMP_CPUInfo_flag_APUInited;
 
 	// set the signal handler
 	Task_setSysSignalHandler(task);
@@ -239,6 +240,8 @@ void Task_buildInitTask(u64 cpuId) {
 	// set the timer tree
 	RBTree_init(&task->timerTree, Task_Timer_comparator);
 	SpinLock_init(&task->timerTreeLock);
+
+	SMP_current->flags = SMP_CPUInfo_flag_APUInited;
 }
 
 

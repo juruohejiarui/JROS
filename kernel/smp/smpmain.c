@@ -37,8 +37,5 @@ void startSMP() {
 	Atomic_inc(&SMP_initCpuNum);
 	Task_Syscall_init();
 	IO_sti();
-	while (1) {
-		while (Task_cfsStruct.taskNum[Task_current->cpuId].value == 1) IO_hlt();
-		Task_releaseProcessor();
-	}
+	while (1) IO_hlt();
 }

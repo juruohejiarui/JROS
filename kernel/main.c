@@ -13,6 +13,7 @@ u8 Init_stack[32768] __attribute__((__section__ (".data.Init_stack") )) = { 0 };
 
 void startKernel() {
 	SMP_cpuNum = -1;
+	
     Intr_Gate_setTSS(
             tss64Table,
             (u64)(Init_stack + 32768), (u64)(Init_stack + 32768), (u64)(Init_stack + 32768), 0xffff800000007c00, 0xffff800000007c00,
@@ -38,14 +39,12 @@ void startKernel() {
 	Task_initMgr();
 	SIMD_init();
 	Task_buildInitTask(SMP_getCurCPUIndex());
-	SMP_initAPU();
-    Task_init();
+	SIMD_enable();
 
+	SMP_initAPU();
+	
+    Task_init();
 	// setting this flag means launching the task scheduling.
     Task_cfsStruct.flags = 1;
-	SIMD_enable();
-    while (1) {
-		while (Task_cfsStruct.taskNum[Task_current->cpuId].value == 1) IO_hlt();
-		Task_releaseProcessor();
-	}
+    while (1) IO_hlt();
 }

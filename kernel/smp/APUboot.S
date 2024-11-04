@@ -36,7 +36,7 @@ TMP:
 
 	lidtl SMP_APUTmpIDT - SMP_APUBootBase
 	lgdtl SMP_APUTmpGDT - SMP_APUBootBase
-
+ 
 	smsw %ax
 	bts $0, %ax
 	lmsw %ax
