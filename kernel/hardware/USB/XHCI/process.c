@@ -5,7 +5,6 @@
 #include "../../../includes/interrupt.h"
 
 List HW_USB_XHCI_hostList, HW_USB_XHCI_DriverList;
-SpinLock HW_USB_XHCI_DriverListLock;
 
 // get the first event trb pointer, dequeue
 static XHCI_GenerTRB *_getEvePtr(XHCI_Host *host, int eveId) {
@@ -187,8 +186,6 @@ void HW_USB_XHCI_init(PCIeManager *pci) {
 		return ;
 	}
 	HW_USB_XHCI_waiForHostIsReady(host);
-
-	SpinLock_init(&host->addr0Lock);
 
 	// set max slot field of config register
 	HW_USB_XHCI_writeOpReg(host, XHCI_OpReg_cfg, 
@@ -487,7 +484,6 @@ void HW_USB_XHCI_devMgrTask(XHCI_Device *dev, u64 rootPort) {
 		HW_USB_XHCI_TRB_setType(&req0->trb[0], XHCI_TRB_Type_AddrDev);
 		HW_USB_XHCI_TRB_setSlot(&req0->trb[0], dev->slotId);
 		// set BSR bit
-		
 		dev->inCtx = kmalloc(0x1000, Slab_Flag_Clear | Slab_Flag_Private, NULL);
 		dev->inCtx->ctrl.addFlags = (1 << 0) | (1 << 1);
 		{
@@ -515,7 +511,6 @@ void HW_USB_XHCI_devMgrTask(XHCI_Device *dev, u64 rootPort) {
 		if (HW_USB_XHCI_Req_ringDbWait(dev->host, 0, 0, 0, req0) != XHCI_TRB_CmplCode_Succ) {
 			printk(RED, BLACK, "dev:%#018lx failed to address device, code=%d\n", dev, HW_USB_XHCI_TRB_getCmplCode(&req0->res));
 			dev->mgrTask = NULL;
-			SpinLock_unlock(&dev->host->addr0Lock);
 			Task_setSignal(Task_current, Task_Signal_Int);
 			while (1) IO_hlt();
 		}
@@ -579,14 +574,10 @@ void HW_USB_XHCI_devMgrTask(XHCI_Device *dev, u64 rootPort) {
 	kfree(req1, Slab_Flag_Private);
 	printk(YELLOW, BLACK, "dev %#018lx: search for driver\n", dev);
 	while (1) {
-		IO_cli();
-		SpinLock_lock(&HW_USB_XHCI_DriverListLock);
 		// search for a compatible driver
 		for (List *drvList = HW_USB_XHCI_DriverList.next; drvList != &HW_USB_XHCI_DriverList; drvList = drvList->next) {
 			XHCI_Driver *driver = container(drvList, XHCI_Driver, list);
 			if (driver->check(dev)) {
-				SpinLock_unlock(&HW_USB_XHCI_DriverListLock);
-				IO_sti();
 				dev->driver = driver;
 				// enable this device
 				if (driver->enable) driver->enable(dev);
@@ -597,8 +588,6 @@ void HW_USB_XHCI_devMgrTask(XHCI_Device *dev, u64 rootPort) {
 				goto End;
 			}
 		}
-		SpinLock_unlock(&HW_USB_XHCI_DriverListLock);
-		IO_sti();
 		Intr_SoftIrq_Timer_mdelay(10);
 	}
 	End:

@@ -10,7 +10,6 @@ void HW_USB_init() {
     List_init(&HW_USB_UHCI_mgrList);
 	List_init(&HW_USB_XHCI_hostList);
 	List_init(&HW_USB_XHCI_DriverList);
-	SpinLock_init(&HW_USB_XHCI_DriverListLock);
 
 	HW_USB_HID_init();
 

@@ -57,8 +57,11 @@ void APIC_initLocal() {
 		if (HW_APIC_supportFlag & HW_APIC_supportFlag_X2APIC) Bit_set1(&val, 10);
 		IO_writeMSR(0x1b, val);
 	}
+
+	x = IO_readMSR(0x1b);
     if (0xC00 & x) printk(WHITE, BLACK, "xAPIC & x2APIC enabled\n");
 	else if(0x800 & x) printk(WHITE, BLACK, "xAPIC enabled\n");
+	else { printk(RED, BLACK, "failed to enable xAPIC / x2APIC.\n"); while (1) IO_hlt(); }
 
 	if (HW_APIC_supportFlag & HW_APIC_supportFlag_X2APIC) {
 		// enable SVR[8] & SVR[12]

@@ -9,9 +9,7 @@ void HW_USB_HID_init() {
 	HW_USB_HID_driver.driver.check = HW_USB_HID_check;
 	HW_USB_HID_driver.driver.process = HW_USB_HID_process;
 	List_init(&HW_USB_HID_driver.driver.list);
-	SpinLock_lock(&HW_USB_XHCI_DriverListLock);
 	List_insBefore(&HW_USB_HID_driver.driver.list, &HW_USB_XHCI_DriverList);
-	SpinLock_unlock(&HW_USB_XHCI_DriverListLock);
 	HW_USB_HID_initParse();
 }
 

@@ -264,7 +264,6 @@ typedef struct XHCI_Driver {
 	List list;
 } XHCI_Driver;
 
-extern SpinLock HW_USB_XHCI_DriverListLock;
 extern List HW_USB_XHCI_DriverList;
 
 typedef struct XHCI_EveRing {
@@ -331,7 +330,7 @@ typedef struct XHCI_Host {
 	XHCI_GenerTRB **eveQue;
 	#define XHCI_Host_EveQueSize 1024
 	int *eveQueHdr, *eveQueTil, *eveQueLen;
-	SpinLock *eveLock, addr0Lock;
+	SpinLock *eveLock;
 
 	XHCI_Device **dev;
 
