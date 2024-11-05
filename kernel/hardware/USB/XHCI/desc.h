@@ -318,14 +318,14 @@ typedef struct XHCI_Host {
 	
 	XHCI_PortInfo *port;
 	XHCI_Ring *cmdRing;
-	XHCI_EveRing *eveRing;
+	XHCI_EveRing **eveRing;
 
 	PCIe_MSI_Descriptor *msiDesc;
 
 	XHCI_DevCtx **devCtx;
 	u64 ctxSize; // option : 4, 8
 	
-	TaskStruct **eveHandlerTask;
+	TaskStruct **eveHandleTask;
 
 	XHCI_GenerTRB **eveQue;
 	#define XHCI_Host_EveQueSize 1024
@@ -336,6 +336,7 @@ typedef struct XHCI_Host {
 
 	u64 flags;
 	#define XHCI_Host_Flag_Initialized	(1 << 0)
+	u64 enabledIntrNum, eveHandleTaskNum;
 } XHCI_Host;
 
 #define XHCI_CapReg_capLen 0x0

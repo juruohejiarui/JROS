@@ -27,6 +27,19 @@ i64 _weight[50] = { 1, 2, 3, 4, 5, 6, [6 ... 49] = -1 };
 
 struct CFS_rq Task_cfsStruct;
 
+
+int Task_getRing() {
+    u64 cs;
+    __asm__ volatile ("movq %%cs, %0" : "=a"(cs));
+    return cs & 3;
+}
+
+__always_inline__ void Task_kernelEntryHeader() {
+	Task_current->state = Task_State_Running;
+	SIMD_setTS();
+	IO_sti();
+}
+
 void Task_switchTo_inner(TaskStruct *prev, TaskStruct *next) {
     SMP_CPUInfoPkg *info = SMP_current;
     // printk(RED, BLACK, "From %#018lx, to %#018lx, rip: %#018lx\n", prev, next, next->thread->rip);
@@ -64,11 +77,21 @@ void Task_updateAllProcessorState() {
 	Task_updateCurState();
 }
 
-static int _CFSTree_comparator(RBNode *a, RBNode *b) {
+static __always_inline__ int _CFSTree_comparator(RBNode *a, RBNode *b) {
 	TaskStruct *task1 = container(a, TaskStruct, wNode), *task2 = container(b, TaskStruct, wNode);
 	return task1->vRunTime != task2->vRunTime ? (task1->vRunTime < task2->vRunTime) : (task1->pid < task2->pid);
 }
 
+void CFSTree_rbTreeIns(RBTree *tree, RBNode *node, RBNode ***tgr, RBNode **par) {
+	RBNode **src = &tree->root; RBNode *lst;
+	while (*src) {
+		lst = *src;
+		if (_CFSTree_comparator(node, lst))
+			src = &(*src)->left;
+		else src = &(*src)->right;
+	}
+	*tgr = src,  *par = lst;
+}
 
 
 void Task_schedule() {
@@ -183,10 +206,21 @@ int Task_Timer_add(Task_Timer *timer) {
 	Intr_SoftIrq_Timer_addIrq(&timer->irq);
 }
 
-int Task_Timer_comparator(RBNode *a, RBNode *b) {
+static __always_inline__ int _Task_Timer_comparator(RBNode *a, RBNode *b) {
 	Task_Timer 	*ta = container(a, Task_Timer, wNode),
 				*tb = container(b, Task_Timer, wNode);
 	return (ta->irq.expireJiffies == tb->irq.expireJiffies ? (u64)ta < (u64)tb : ta->irq.expireJiffies < tb->irq.expireJiffies);
+}
+
+void Task_Timer_rbTreeIns(RBTree *tree, RBNode *node, RBNode ***tgr, RBNode **par) {
+	RBNode **src = &tree->root; RBNode *lst;
+	while (*src) {
+		lst = *src;
+		if (_Task_Timer_comparator(node, lst))
+			src = &(*src)->left;
+		else src = &(*src)->right;
+	}
+	*tgr = src,  *par = lst;
 }
 #pragma endregion
 
@@ -198,6 +232,8 @@ static void *_argWrap(void *arg1, u64 arg2) {
 	argPkg[1] = arg2;
 	return argPkg;
 }
+
+#pragma region initialization, fork and build
 void Task_buildInitTask(u64 cpuId) {
 	TaskStruct *task = Task_current;
 	memset(task, 0, sizeof(TaskStruct) + sizeof(ThreadStruct) + sizeof(TaskMemStruct) + sizeof(TSS));
@@ -238,7 +274,7 @@ void Task_buildInitTask(u64 cpuId) {
 	Task_setSysSignalHandler(task);
 
 	// set the timer tree
-	RBTree_init(&task->timerTree, Task_Timer_comparator);
+	RBTree_init(&task->timerTree, Task_Timer_rbTreeIns);
 	SpinLock_init(&task->timerTreeLock);
 
 	SMP_current->flags = SMP_CPUInfo_flag_APUInited;
@@ -326,7 +362,7 @@ TaskStruct *Task_createTask(Task_Entry entry, void *arg1, u64 arg2, u64 flag) {
 	Task_setSysSignalHandler(task);
 
 	// set the timer tree
-	RBTree_init(&task->timerTree, Task_Timer_comparator);
+	RBTree_init(&task->timerTree, Task_Timer_rbTreeIns);
 	SpinLock_init(&task->timerTreeLock);
 
 	// initialize the simd structure
@@ -343,11 +379,9 @@ TaskStruct *Task_createTask(Task_Entry entry, void *arg1, u64 arg2, u64 flag) {
     return task;
 }
 
-int Task_getRing() {
-    u64 cs;
-    __asm__ volatile ("movq %%cs, %0" : "=a"(cs));
-    return cs & 3;
-}
+#pragma endregion
+
+#pragma kernel page management
 
 void Task_syncKrlPageTable() {
 	if (Task_userSpaceManage()->krlPgTblJiffies == Task_krlPgTblSyncJiffies.value) return ;
@@ -371,11 +405,11 @@ void Task_unmapKrlPage(u64 vAddr) {
 	SpinLock_unlock(&Task_krlPgTblLock);
 }
 
-__always_inline__ void Task_kernelEntryHeader() {
-	Task_current->state = Task_State_Running;
-	SIMD_setTS();
-	IO_sti();
-}
+#pragma endregion
+
+
+
+#pragma region exit and recycle
 
 /// @brief when the task is finished, this function will be executed to recycle the resource that this task used. (e.g. memory, ports)
 void Task_exit(int retVal) {
@@ -423,14 +457,16 @@ void Task_recycleThread(void *arg1, u64 arg2) {
     Task_kernelThreadExit(0);
 }
 
+#pragma endregion
+
 void Task_initMgr() {
 	printk(RED, BLACK, "Task_initMgr()\n");
 	for (int i = 0; i < SMP_cpuNum; i++) {
-		RBTree_init(&Task_cfsStruct.tree[i], _CFSTree_comparator);
+		RBTree_init(&Task_cfsStruct.tree[i], CFSTree_rbTreeIns);
 		SpinLock_init(&Task_cfsStruct.lock[i]);
 	}
 	memset(Task_cfsStruct.taskNum, 0, sizeof(Task_cfsStruct.taskNum));
-    RBTree_init(&Task_cfsStruct.killedTree, _CFSTree_comparator);
+    RBTree_init(&Task_cfsStruct.killedTree, CFSTree_rbTreeIns);
     SpinLock_init(&Task_cfsStruct.killedTreeLock);
 
 	Task_cfsStruct.killedTaskNum.value = 0;

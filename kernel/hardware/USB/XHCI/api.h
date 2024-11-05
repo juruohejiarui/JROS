@@ -260,7 +260,7 @@ IntrHandlerDeclare(HW_USB_XHCI_msiHandler);
 
 void HW_USB_XHCI_init(PCIeManager *pci);
 
-void HW_USB_XHCI_evehandleTask(XHCI_Host *host, u64 intrId);
+void HW_USB_XHCI_eveHandleTask(XHCI_Host *host, u64 intrId);
 
 void HW_USB_XHCI_devMgrTask(XHCI_Device *dev, u64 rootPort);
 

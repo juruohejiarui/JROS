@@ -120,5 +120,5 @@ int SMP_testIntr(int cpuId, u8 vecSt, u8 vecNum);
 
 // Select a CPU and assign consecutive NUM interrupt vectors
 // if there is not enough vector, then this allocation will be canceled and *cpuId == -1
-void SMP_allocIntrVec(int num, int *cpuId, u8 *vecSt);
+void SMP_allocIntrVec(int num, int cpuSt, int *cpuId, u8 *vecSt);
 #endif

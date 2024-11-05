@@ -288,12 +288,13 @@ int SMP_testIntr(int cpuId, u8 vecSt, u8 vecNum) {
 	return -1;
 }
 
-void SMP_allocIntrVec(int num, int *cpuId, u8 *vecSt) {
+void SMP_allocIntrVec(int num, int cpuSt, int *cpuId, u8 *vecSt) {
 	for (int i = 0; i < SMP_cpuNum; i++) {
+		int curCpu = (cpuSt + i) % SMP_cpuNum;
 		for (int st = 0, err; st + num - 1 <= 0xff; st++)
-			if ((err = SMP_testIntr(i, st, num)) == -1) {
-				SMP_maskIntr(i, st, num);
-				*cpuId = i, *vecSt = st;
+			if ((err = SMP_testIntr(curCpu, st, num)) == -1) {
+				SMP_maskIntr(curCpu, st, num);
+				*cpuId = curCpu, *vecSt = st;
 				return ;
 			} else st = err;
 	}

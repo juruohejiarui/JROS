@@ -22,6 +22,6 @@ void Intr_SoftIrq_Timer_updateState();
 
 void Intr_SoftIrq_Timer_mdelay(u64 msec);
 
-int Intr_SoftIrq_Timer_comparator(RBNode *a, RBNode *b);
+void Intr_SoftIrq_Timer_rbTreeIns(RBTree *tree, RBNode *node, RBNode ***tgr, RBNode **par);
 
 #endif

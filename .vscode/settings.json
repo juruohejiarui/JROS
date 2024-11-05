@@ -15,6 +15,12 @@
 		"uefi.h": "c",
 		"random": "c",
 		"*.tcc": "c",
-		"ostream": "c"
+		"ostream": "c",
+		"hash_map": "c",
+		"deque": "c",
+		"list": "c",
+		"string": "c",
+		"unordered_map": "c",
+		"vector": "c"
 	}
 }

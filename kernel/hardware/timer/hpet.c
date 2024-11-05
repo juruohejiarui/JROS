@@ -32,13 +32,11 @@ static int _mode;
 
 IntrHandlerDeclare(HW_Timer_HPET_handler) {
 	// print the counter
-	if (_mode & 1) {
-		Atomic_inc(&_jiffies);
-		if (Task_cfsStruct.flags) Intr_SoftIrq_Timer_updateState();
-	} else {
-		Task_updateAllProcessorState();
-	}
-	_mode ^= 1;
+	Atomic_inc(&_jiffies);
+	if (!Task_cfsStruct.flags) return 0;
+	Intr_SoftIrq_Timer_updateState();
+	Task_updateAllProcessorState();
+	return 0;
 	// printk(BLACK, WHITE, "H");
 }
 
@@ -125,7 +123,7 @@ void HW_Timer_HPET_init() {
 	else printk(WHITE, BLACK, "HPET: timer 0 support 32 bit.\n");
 	_setTimerConfig(0, 0x40000004c);
 	// set it to 0.5 ms
-	_setTimerComparator(0, (u32)(0.5 * 1e12 / _minTick + 1));
+	_setTimerComparator(0, (u32)(1 * 1e12 / _minTick + 1));
 	
 	*(u64 *)(DMAS_phys2Virt(_hpetDesc->address.Address) + 0xf0) = 0x0;
 	IO_mfence();

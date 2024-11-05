@@ -4,6 +4,12 @@
 #include "../includes/interrupt.h"
 #include "../includes/hardware.h"
 
+
+int Task_getRing();
+
+/// @brief the general entry for every task
+extern void Task_kernelThreadEntry();
+
 struct CFS_rq {
     RBTree tree[Hardware_CPUNumber], killedTree;
 	SpinLock lock[Hardware_CPUNumber], killedTreeLock;
@@ -96,11 +102,6 @@ int Task_Timer_modJiffies(Task_Timer *timer, u64 jiffies);
 /// @return -1: this timer is already in timer queue and can't be added twice 
 int Task_Timer_add(Task_Timer *timer);
 #pragma endregion
-
-int Task_getRing();
-
-/// @brief the general entry for every task
-extern void Task_kernelThreadEntry();
 
 /// @brief the header for all the kernel entries
 void Task_kernelEntryHeader();

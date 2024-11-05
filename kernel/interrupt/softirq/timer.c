@@ -43,10 +43,21 @@ void Intr_SoftIrq_Timer_mdelay(u64 msec) {
 	while (HW_Timer_HPET_jiffies() - stJiffies < msec) IO_hlt();
 }
 
-int Intr_SoftIrq_Timer_comparator(RBNode *a, RBNode *b) {
+int _TimerTree_comparator(RBNode *a, RBNode *b) {
 	TimerIrq	*irq1 = container(a, TimerIrq, rbNode),
 				*irq2 = container(b, TimerIrq, rbNode);
 	return (irq1->expireJiffies != irq2->expireJiffies ? (irq1->expireJiffies < irq2->expireJiffies) : (irq1->id < irq2->id));
+}
+
+void Intr_SoftIrq_Timer_rbTreeIns(RBTree *tree, RBNode *node, RBNode ***tgr, RBNode **par) {
+	RBNode **src = &tree->root; RBNode *lst;
+	while (*src) {
+		lst = *src;
+		if (_TimerTree_comparator(node, lst))
+			src = &(*src)->left;
+		else src = &(*src)->right;
+	}
+	*tgr = src,  *par = lst;
 }
 
 void _doTimer(void *data) {
@@ -72,7 +83,7 @@ void _doTimer(void *data) {
 
 void Intr_SoftIrq_Timer_init() {
 	_timerIdCnt = 0;
-	RBTree_init(&_timerTree, Intr_SoftIrq_Timer_comparator);
+	RBTree_init(&_timerTree, Intr_SoftIrq_Timer_rbTreeIns);
 	SpinLock_init(&_lock);
 	Intr_SoftIrq_register(0, _doTimer, NULL);
 }

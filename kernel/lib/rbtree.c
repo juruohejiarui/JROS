@@ -63,10 +63,10 @@ void RBTree_debug(RBTree *tree) {
 	SpinLock_unlock(&tree->lock);
 }
 
-void RBTree_init(RBTree *tree, RBTreeComparator comparator) {
+void RBTree_init(RBTree *tree, RBTreeInsert insert) {
 	SpinLock_init(&tree->lock);
 	tree->root = NULL;
-	tree->comparator = comparator;
+	tree->insert = insert;
 }
 
 static void _fixAfterIns(RBTree *tree, RBNode *node) {
@@ -127,12 +127,7 @@ void RBTree_insNode(RBTree *tree, RBNode *node) {
 		return ;
 	}
 	RBNode **src = &tree->root, *lst = NULL;
-	while (*src) {
-		lst = *src;
-		if (tree->comparator(node, lst))
-			src = &(*src)->left;
-		else src = &(*src)->right;
-	}
+	tree->insert(tree, node, &src, &lst);
 	_linkNode(src, node, lst);
 	// rebalance
 	_fixAfterIns(tree, node);
