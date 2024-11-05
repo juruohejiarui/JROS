@@ -7,6 +7,8 @@
 #include "../../includes/smp.h"
 
 static u32 _minTick = 0;
+// number of tick pre millisecond
+static u64 _tickPreMs = 0;
 
 static IntrController _intrCotroller;
 static IntrHandler _intrHandler;
@@ -15,20 +17,22 @@ static APICRteDescriptor _intrDesc;
 static HPETDescriptor *_hpetDesc;
 Atomic HPET_jiffies;
 
-#define _CapId				0x0
-#define _Cfg				0x10
-#define _Cfg_LegacySupport 	(1ul << 1)
-#define _Cfg_Enable			(1ul << 0)
-#define _IntrStatus			0x20
-#define _MainCounterValue 	0xf0
-#define _TimerCfgCap		0x100
-#define _TimerCfgCap_Enable	(1ul << 2)
-#define _TimerCfgCap_Period	(1ul << 3)
-#define _TimerCfgCap_SetVal	(1ul << 6)
-#define _TimerCfgCap_32bit	(1ul << 8)
-#define _TimerCfgCap_Irq(x)	(1ul << ((x) + 32))
-#define _TimerCmpVal		0x108
-#define _TimerFSBIntr		0x110
+#define _CapId					0x0
+#define _Cfg					0x10
+#define _Cfg_LegacySupport 		(1ul << 1)
+#define _Cfg_Enable				(1ul << 0)
+#define _IntrStatus				0x20
+#define _MainCounterValue 		0xf0
+#define _TimerCfgCap			0x100
+#define _TimerCfgCap_Enable		(1ul << 2)
+#define _TimerCfgCap_Period		(1ul << 3)
+#define _TimerCfgCap_PeriodCap	(1ul << 4)
+#define _TimerCfgCap_64Cap		(1ul << 5)
+#define _TimerCfgCap_SetVal		(1ul << 6)
+#define _TimerCfgCap_32bit		(1ul << 8)
+#define _TimerCfgCap_Irq(x)		(1ul << ((x) + 32))
+#define _TimerCmpVal			0x108
+#define _TimerFSBIntr			0x110
 
 static __always_inline__ void _setCfgQuad(u64 offset, u64 val) { *(u64 *)DMAS_phys2Virt(_hpetDesc->address.Address + offset) = val; IO_mfence(); }
 static __always_inline__ u64 _getCfgQuad(u64 offset) { return *(u64 *)DMAS_phys2Virt(_hpetDesc->address.Address + offset); }
@@ -52,10 +56,14 @@ IntrHandlerDeclare(HW_Timer_HPET_handler) {
 	// print the counter
 	Atomic_inc(&HPET_jiffies);
 	if (!Task_cfsStruct.flags) return 0;
-	Intr_SoftIrq_Timer_updateState();
 	Task_updateAllProcessorState();
 	return 0;
 	// printk(BLACK, WHITE, "H");
+}
+
+// this interrupt is for timer requires
+IntrHandlerDeclare(HW_Timer_HPET_handler2) {
+
 }
 
 void HW_Timer_HPET_init() {
@@ -117,18 +125,18 @@ void HW_Timer_HPET_init() {
 		u32 a, b, c, d;
 		HW_CPU_cpuid(0x1, 0, &a, &b, &c, &d);
 		// I dont know why I need to use logical destination, but it can run on Intel Ultra 7 155H, so I keep it like this.
-		_intrDesc.destDesc.logical.destination = HW_APIC_getAPICID();
+		_intrDesc.destDesc.logical.destination = HW_APIC_getAPICID(); 
 		printk(WHITE, BLACK, "HPET: timer interrupt at processor with apicID=%x\n", HW_APIC_getAPICID());
 	}
 
 	// set the general configuration register
 	u64 cReg = _getCfgQuad(_CapId);
-	printk(YELLOW, BLACK, "HPET: Capability register: %#018lx \t", cReg);
-	if (cReg & 0x2000) printk(WHITE, BLACK, "64-bit supply: Y \t");
-	else printk(WHITE, BLACK, "64-bit supply: N\t");
-	if (cReg & 0x8000) printk(WHITE, BLACK, "Legacy replacement: Y \t");
+	printk(YELLOW, BLACK, "HPET: Capability: %#018lx \t", cReg);
+	if (cReg & 0x2000) printk(WHITE, BLACK, "64-bit supply:Y \t");
+	else printk(WHITE, BLACK, "64-bit supply:N \t");
+	if (cReg & 0x8000) printk(WHITE, BLACK, "Legacy replacement:Y \t");
 	else {
-		printk(WHITE, BLACK, "Legacy replacement: N \t");
+		printk(WHITE, BLACK, "Legacy replacement:N \t");
 		while (1) IO_hlt(); 
 	}
 	// get min tick
@@ -137,14 +145,17 @@ void HW_Timer_HPET_init() {
 	_setCfgQuad(_Cfg, 0x0);
 
 	u64 cfg0 = _getTimerConfig(0);
-	if (cfg0 & 0x20) printk(WHITE, BLACK, "HPET: timer 0 support 64 bit.\n");
-	else printk(WHITE, BLACK, "HPET: timer 0 support 32 bit.\n");
+	printk(YELLOW, BLACK, "HPET: Timer 0: cap&cfg:%#018lx \t", cfg0);
+	if (cfg0 & _TimerCfgCap_64Cap) printk(WHITE, BLACK, "64-bit supply: Y \t");
+	else printk(WHITE, BLACK, "64-bit supply:N \t");
+	if (cfg0 & _TimerCfgCap_PeriodCap) printk(WHITE, BLACK, "Period mode supply: Y\n");
+	else { printk(RED, BLACK, "Period supply:N \n"); while (1) IO_hlt(); }
 	_setTimerConfig(0, 0x40000004c);
 
 	_setTimerConfig(0, _TimerCfgCap_Enable | _TimerCfgCap_Period | _TimerCfgCap_SetVal | _TimerCfgCap_Irq(2));
 	// set it to 1 ms
 	_setTimerComparator(0, (u64)(1 * 1e12 / _minTick + 1));
-	
+
 	_setCfgQuad(_MainCounterValue, 0x0);
 	_setCfgQuad(_IntrStatus, 0xfffffffful);
 	_setCfgQuad(_Cfg, 0x3);
@@ -159,5 +170,9 @@ void HW_Timer_HPET_initAdvance() {
 	u64 cReg = _getCfgQuad(_CapId);
 	cmpNum = (cReg >> 8) & 0xf;
 	printk(WHITE, BLACK, "cmpNum:%d\n", cmpNum);
-	// 
+	if (cmpNum < 2) { printk(RED, BLACK, "No 2rd HPET comparator.\n"); return ; }
+	// setup second comparator with no-period mode
+	int cfg1 = _getTimerConfig(1);
+	if (!(cfg1 & _TimerCfgCap_64Cap)) { printk(RED, BLACK, "HPET: Timer 1: 64-bit supply: N\n"); return ; }
+
 }
