@@ -13,26 +13,44 @@ static IntrHandler _intrHandler;
 static APICRteDescriptor _intrDesc;
 
 static HPETDescriptor *_hpetDesc;
-static Atomic _jiffies;
+Atomic HPET_jiffies;
 
-static __always_inline__ u64 _getTimerConfig(u32 id) { return *(u64 *)(DMAS_phys2Virt(_hpetDesc->address.Address + 0x100 + 0x20 * id));}
+#define _CapId				0x0
+#define _Cfg				0x10
+#define _Cfg_LegacySupport 	(1ul << 1)
+#define _Cfg_Enable			(1ul << 0)
+#define _IntrStatus			0x20
+#define _MainCounterValue 	0xf0
+#define _TimerCfgCap		0x100
+#define _TimerCfgCap_Enable	(1ul << 2)
+#define _TimerCfgCap_Period	(1ul << 3)
+#define _TimerCfgCap_SetVal	(1ul << 6)
+#define _TimerCfgCap_32bit	(1ul << 8)
+#define _TimerCfgCap_Irq(x)	(1ul << ((x) + 32))
+#define _TimerCmpVal		0x108
+#define _TimerFSBIntr		0x110
 
-static inline void _setTimerConfig(u32 id, u64 config) {
-	u64 readonlyPart = *(u64 *)(DMAS_phys2Virt(_hpetDesc->address.Address) + 0x100 + 0x20 * id) & 0x8030;
+static __always_inline__ void _setCfgQuad(u64 offset, u64 val) { *(u64 *)DMAS_phys2Virt(_hpetDesc->address.Address + offset) = val; IO_mfence(); }
+static __always_inline__ u64 _getCfgQuad(u64 offset) { return *(u64 *)DMAS_phys2Virt(_hpetDesc->address.Address + offset); }
+static __always_inline__ void _setCfgDword(u64 offset, u32 val) { *(u32 *)DMAS_phys2Virt(_hpetDesc->address.Address + offset) = val; IO_mfence(); }
+static __always_inline__ u32 _getCfgDword(u64 offset) { return *(u32 *)DMAS_phys2Virt(_hpetDesc->address.Address + offset); }
+
+static __always_inline__ u64 _getTimerConfig(u32 id) { return _getCfgQuad(0x20 * id + _TimerCmpVal); }
+
+static __always_inline__ void _setTimerConfig(u32 id, u64 config) {
+	u64 readonlyPart = _getCfgQuad(_TimerCfgCap + 0x20 * id) & 0x8030;
 	// focused to run in 32-bit mode
-	*(u64 *)((u64)DMAS_phys2Virt(_hpetDesc->address.Address) + 0x100 + 0x20 * id) = config | readonlyPart;
-	IO_mfence();
+	_setCfgQuad(_TimerCfgCap + 0x20 * id, config | readonlyPart);
 }
 static __always_inline__ void _setTimerComparator(u32 id, u64 comparator) {
-	*(u64 *)(DMAS_phys2Virt(_hpetDesc->address.Address) + 0x108 + 0x20 * id) = comparator;
-	IO_mfence();
+	_setCfgQuad(_TimerCmpVal + 0x20 * id, comparator);
 }
 
 static int _mode;
 
 IntrHandlerDeclare(HW_Timer_HPET_handler) {
 	// print the counter
-	Atomic_inc(&_jiffies);
+	Atomic_inc(&HPET_jiffies);
 	if (!Task_cfsStruct.flags) return 0;
 	Intr_SoftIrq_Timer_updateState();
 	Task_updateAllProcessorState();
@@ -43,7 +61,7 @@ IntrHandlerDeclare(HW_Timer_HPET_handler) {
 void HW_Timer_HPET_init() {
 	printk(RED, BLACK, "HW_Timer_HPET_init()\n");
 	// initializ the data structure
-	_jiffies.value = _mode = 0;
+	HPET_jiffies.value = _mode = 0;
 	// get XSDT address
 	XSDTDescriptor *xsdt = HW_UEFI_getXSDT();
 	// find HPET in XSDT
@@ -104,8 +122,8 @@ void HW_Timer_HPET_init() {
 	}
 
 	// set the general configuration register
-	u64 cReg = *(u64 *)(DMAS_phys2Virt(_hpetDesc->address.Address) + 0x00);
-	printk(YELLOW, BLACK, "HPET: Capability register: %#018lx \t", *(u64 *)(DMAS_phys2Virt(_hpetDesc->address.Address) + 0x00));
+	u64 cReg = _getCfgQuad(_CapId);
+	printk(YELLOW, BLACK, "HPET: Capability register: %#018lx \t", cReg);
 	if (cReg & 0x2000) printk(WHITE, BLACK, "64-bit supply: Y \t");
 	else printk(WHITE, BLACK, "64-bit supply: N\t");
 	if (cReg & 0x8000) printk(WHITE, BLACK, "Legacy replacement: Y \t");
@@ -116,23 +134,30 @@ void HW_Timer_HPET_init() {
 	// get min tick
 	_minTick = (cReg >> 32) & ((1ul << 32) - 1);
 	printk(WHITE, BLACK, " minTick=%d\n", _minTick);
-	*(u64 *)(DMAS_phys2Virt(_hpetDesc->address.Address) + 0x10) = 0x0;
+	_setCfgQuad(_Cfg, 0x0);
 
 	u64 cfg0 = _getTimerConfig(0);
 	if (cfg0 & 0x20) printk(WHITE, BLACK, "HPET: timer 0 support 64 bit.\n");
 	else printk(WHITE, BLACK, "HPET: timer 0 support 32 bit.\n");
 	_setTimerConfig(0, 0x40000004c);
-	// set it to 0.5 ms
-	_setTimerComparator(0, (u32)(1 * 1e12 / _minTick + 1));
+
+	_setTimerConfig(0, _TimerCfgCap_Enable | _TimerCfgCap_Period | _TimerCfgCap_SetVal | _TimerCfgCap_Irq(2));
+	// set it to 1 ms
+	_setTimerComparator(0, (u64)(1 * 1e12 / _minTick + 1));
 	
-	*(u64 *)(DMAS_phys2Virt(_hpetDesc->address.Address) + 0xf0) = 0x0;
-	IO_mfence();
-	*(u64 *)(DMAS_phys2Virt(_hpetDesc->address.Address) + 0x20) = 0xffffffff;
-	IO_mfence();
-	*(u64 *)(DMAS_phys2Virt(_hpetDesc->address.Address) + 0x10) = 0x3;
-	IO_mfence();
+	_setCfgQuad(_MainCounterValue, 0x0);
+	_setCfgQuad(_IntrStatus, 0xfffffffful);
+	_setCfgQuad(_Cfg, 0x3);
 
 	Intr_register(0x22, &_intrDesc, HW_Timer_HPET_handler, 0, &_intrCotroller, "HPET");
 }
 
-i64 HW_Timer_HPET_jiffies() { return _jiffies.value; }
+void HW_Timer_HPET_initAdvance() {
+	printk(RED, BLACK, "HW_Timer_HPET_initAdvance()");
+	// initialize the other comparators
+	int cmpNum = 0;
+	u64 cReg = _getCfgQuad(_CapId);
+	cmpNum = (cReg >> 8) & 0xf;
+	printk(WHITE, BLACK, "cmpNum:%d\n", cmpNum);
+	// 
+}

@@ -10,6 +10,8 @@ typedef struct {
 	u8 reserved;
 	u64 Address;
 } __attribute__ ((packed)) AddressStructure;
+
+extern Atomic HPET_jiffies;
 typedef struct {
 	u8 signature[4];  	// 0-3
 	u32 length;			// 4-7
@@ -36,6 +38,8 @@ typedef struct {
 #define HW_Timer_HPET_Signature "HPET"
 
 void HW_Timer_HPET_init();
-i64 HW_Timer_HPET_jiffies();
+void HW_Timer_HPET_initAdvance();
+
+static __always_inline__ i64 HW_Timer_HPET_jiffies() { return HPET_jiffies.value; }
 
 #endif
