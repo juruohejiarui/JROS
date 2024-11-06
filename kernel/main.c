@@ -7,6 +7,7 @@
 #include "includes/hardware.h"
 #include "includes/smp.h"
 #include "includes/simd.h"
+#include "includes/fs.h"
 
 
 u8 Init_stack[32768] __attribute__((__section__ (".data.Init_stack") )) = { 0 };
