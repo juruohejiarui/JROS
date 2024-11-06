@@ -68,6 +68,8 @@ __always_inline__ void Bit_rev(u64 *addr, u64 index) {
 // return 1-based index
 u32 Bit_ffs(u64 val);
 
+static __always_inline__ u32 endianSwap32(u32 val) { return ((val >> 24) & 0xff) | ((val >> 8) & 0xff00) | ((val << 8) & 0xff0000) | (val << 24); }
+static __always_inline__ u64 endianSwap64(u64 val) { return ((u64)endianSwap32(val & 0xfffffffful) << 32) | (endianSwap32(val >> 32)); }
 
 #define memberOffset(type, member) ((u64)(&(((type *)0)->member)))
 #define container(memberAddr, type, memberIden) ((type *)(((u64)(memberAddr))-((u64)&(((type *)0)->memberIden))))
