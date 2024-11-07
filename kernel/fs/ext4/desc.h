@@ -21,9 +21,9 @@ typedef struct EXT4_SuperBlk {
 	u16 mxMntCnt; // number of mounts beyond which a fsck is needed
 	u16 magic; // magic signature, 0xef32
 	u16 state; // file system state
-	#define EXT4_SuperBlk_state_CleanlyUnmounted			0x0001
+	#define EXT4_SuperBlk_state_CleanlyUnmounted		0x0001
 	#define EXT4_SuperBlk_state_ErrorsDetected			0x0002
-	#define EXT4_SuperBlk_state_OrphansBeingRecovered		0x0004
+	#define EXT4_SuperBlk_state_OrphansBeingRecovered	0x0004
 	u16 errors; // behaviour when detecting errors
 	#define EXT4_SuperBlk_errorContinue	1
 	#define EXT4_SuperBlk_errorRemountRO	2
@@ -48,63 +48,63 @@ typedef struct EXT4_SuperBlk {
 	// compatible feature set flags, kernel can still read/write this fs even if it doesn't understand a flag; fsck should not do that
 	u32 featureCompat;
 	#define EXT4_SuperBlk_Compat_DirPrealloc		0x1
-	#define EXT4_SuperBlk_Compat_ImgInodes		0x2
-	#define EXT4_SuperBlk_Compat_HasJournal		0x4
+	#define EXT4_SuperBlk_Compat_ImgInodes			0x2
+	#define EXT4_SuperBlk_Compat_HasJournal			0x4
 	#define EXT4_SuperBlk_Compat_ExtAttr			0x8
 	#define EXT4_SuperBlk_Compat_ResizeInode		0x10
 	#define EXT4_SuperBlk_Compat_DirIndex			0x20
-	#define EXT4_SuperBlk_Compat_LazyBG			0x40
+	#define EXT4_SuperBlk_Compat_LazyBG				0x40
 	#define EXT4_SuperBlk_Compat_ExcludeINode		0x80
-	#define EXT4_SuperBlk_Compat_ExcludeBitmap	0x100
+	#define EXT4_SuperBlk_Compat_ExcludeBitmap		0x100
 	#define EXT4_SuperBlk_Compat_SpareSuper2		0x200
 	u32 f_featureIncompat; // incompatible feature set. If the kernel of fsck does not understand one of these bits, it should stop
-	#define EXT4_SuperBlk_Incompat_Compression	0x1
+	#define EXT4_SuperBlk_Incompat_Compression		0x1
 	// directory entries record the file type
-	#define EXT4_SuperBlk_Incompat_FileType		0x2
-	#define EXT4_SuperBlk_Incompat_Recover		0x4
+	#define EXT4_SuperBlk_Incompat_FileType			0x2
+	#define EXT4_SuperBlk_Incompat_Recover			0x4
 	// has seperate journal device
 	#define EXT4_SuperBlk_Incompat_JournalDev		0x8
 	#define EXT4_SuperBlk_Incompat_MetaBlkGrp		0x10
-	#define EXT4_SuperBlk_Incompat_Extends		0x40
+	#define EXT4_SuperBlk_Incompat_Extends			0x40
 	#define EXT4_SuperBlk_Incompat_64Bits			0x80
 	// multiple mount protection
-	#define EXT4_SuperBlk_Incompat_MMP			0x100
+	#define EXT4_SuperBlk_Incompat_MMP				0x100
 	#define EXT4_SuperBlk_Incompat_FlexBlkGrp		0x200
 	// inodes can be used to store large extended attribute values
-	#define EXT4_SuperBlk_Incompat_ExtAttrInode	0x400
-	#define EXT4_SuperBlk_Incompat_DirData		0x1000
+	#define EXT4_SuperBlk_Incompat_ExtAttrInode		0x400
+	#define EXT4_SuperBlk_Incompat_DirData			0x1000
 	// metadata checksum seed is stored in the super block
 	#define EXT4_SuperBlk_Incompat_ChksumSeed		0x2000
-	#define EXT4_SuperBlk_Incompat_LargeDir		0x4000
+	#define EXT4_SuperBlk_Incompat_LargeDir			0x4000
 	// data in inode
 	#define EXT4_SuperBlk_Incompat_InlineData		0x8000
 	// encrypted inodes are present on the filesystem
-	#define EXT4_SuperBlk_Incompat_Encrypt		0x10000
+	#define EXT4_SuperBlk_Incompat_Encrypt			0x10000
 	u32 featureRoCompat; // readonly-compatible feature set. If the kernel does not understand one of these bits, it can still mount read-only
-	#define EXT4_SuperBlk_RoCompat_SparseSuper	0x1
+	#define EXT4_SuperBlk_RoCompat_SparseSuper		0x1
 	// this filesystem has been used to store a file greater than 2GiB
 	#define EXT4_SuperBlk_RoCompat_LargeFile		0x2
-	#define EXT4_SuperBlk_RoCompat_BtreeDir		0x4
+	#define EXT4_SuperBlk_RoCompat_BtreeDir			0x4
 	// this filesystem has files whose sizes are represented in units of logical blocks, not 512-byte sectors
-	#define EXT4_SuperBlk_RoCompat_HugeFile		0x8
+	#define EXT4_SuperBlk_RoCompat_HugeFile			0x8
 	// group descriptors have checksums
 	#define EXT4_SuperBlk_RoCompat_GDTChksum		0x10
 	// indicates that the old ext3 32000 subdirectory limit no longer applies
-	#define EXT4_SuperBlk_RoCompat_DirNLink		0x20
+	#define EXT4_SuperBlk_RoCompat_DirNLink			0x20
 	// indicates that large inodes exist on this filesystem
 	#define EXT4_SuperBlk_RoCompat_ExtraInodeSize	0x40
-	#define EXT4_SuperBlk_RoCompat_HasSnapshot	0x80
+	#define EXT4_SuperBlk_RoCompat_HasSnapshot		0x80
 	#define EXT4_SuperBlk_RoCompat_Quota			0x100
 	// this filesystem supports "bigalloc"
-	#define EXT4_SuperBlk_RoCompat_BigAlloc		0x200
+	#define EXT4_SuperBlk_RoCompat_BigAlloc			0x200
 	// this filesystem supports metadata checksumming, implies RoCompat_GDTChksum, though GDTChksum must not be set
 	#define EXT4_SuperBlk_RoCompat_MetadataChksum	0x400
 	// this filesystem supports replicas
-	#define EXT4_SuperBlk_RoCompat_Replica		0x800
+	#define EXT4_SuperBlk_RoCompat_Replica			0x800
 	// read-only filesystem image
-	#define EXT4_SuperBlk_RoCompat_Readonly		0x1000
+	#define EXT4_SuperBlk_RoCompat_Readonly			0x1000
 	// this filesystem tracks project quotas
-	#define EXT4_SuperBlk_RoCompat_Project		0x2000
+	#define EXT4_SuperBlk_RoCompat_Project			0x2000
 	u8 uuid[16]; // 128-bit UUID for volume
 	i8 volName[16]; // Volume label
 	u8 lastMounted[64]; // directory where filesystem was last mounted
@@ -134,7 +134,7 @@ typedef struct EXT4_SuperBlk {
 	#define EXT4_SuperBlk_defMountOpt_Debug			0x1
 	#define EXT4_SuperBlk_defMountOpt_BSDGroup		0x2
 	// support userspace-provided extended attributes
-	#define EXT4_SuperBlk_defMountOpt_ExtAttrUser		0x4
+	#define EXT4_SuperBlk_defMountOpt_ExtAttrUser	0x4
 	// Support POSIX access control lists
 	#define EXT4_SuperBlk_defMountOpt_PosixACL		0x8
 	// do not support 32-bit UIDs
@@ -144,15 +144,15 @@ typedef struct EXT4_SuperBlk {
 	// all data are flushed to the disk before metadata are committed to the journal
 	#define EXT4_SuperBlk_defMountOpt_JModeOrdered	0x40
 	// data ordering is not preserved; data may be written after the metadata has been written
-	#define EXT4_SuperBlk_defMountOpt_JModeWback		0x60
+	#define EXT4_SuperBlk_defMountOpt_JModeWback	0x60
 	// disable write flushes
 	#define EXT4_SuperBlk_defMountOpt_NoBarrier		0x100
 	// track which blocks in a filesystem are metadata and therefore should not be used as data blocks
 	#define EXT4_SuperBlk_defMountOpt_Validity		0x200
 	// enable DISCARD support, where the storage device is told about blocks becoming unused
-	#define EXT4_SuperBlk_defMountOpt_Discard			0x400
+	#define EXT4_SuperBlk_defMountOpt_Discard		0x400
 	// disable delayed allocation
-	#define EXT4_SuperBlk_defMountOpt_NoDelAlloc		0x800
+	#define EXT4_SuperBlk_defMountOpt_NoDelAlloc	0x800
 	// first metablock block group, if the meta_bg feature is enabled
 	u32 firMetaBg;
 	// when the firlesystem was created, in seconds since the epoch
@@ -165,7 +165,7 @@ typedef struct EXT4_SuperBlk {
 	u16 mnExtraInodeSize; // all inodes have at least mnExtraInodeSize bytes
 	u16 wantExtraInodeSize;  // new inodes should reserve wantExtraInodeSize bytes
 	u32 flags; // miscellanuous flags
-	#define EXT4_SuperBlk_FlagSignedDirHash	0x0001
+	#define EXT4_SuperBlk_FlagSignedDirHash		0x0001
 	#define EXT4_SuperBlk_FlagUnsignedDirHash	0x0002
 	#define EXT4_SuperBlk_FlagTestDevCode		0x0004
 	/* RAID stride. This is the number of logical blocks read from or written to the disk before moving to the next disk. This affects the placement of filesystem metadata,
@@ -291,10 +291,10 @@ typedef struct EXT4_JBD2_SuperBlk {
 	u32 errno; // error value, as set by FS_EXT4_JDB2_journal_abort()
 	u32 featureCompat; // compatible feature set
 	// journal maintains checksums on the data blocks
-	#define EXT4_JBD2_SuperBlk_Compat_Chksum		0x1
+	#define EXT4_JBD2_SuperBlk_Compat_Chksum			0x1
 	u32 featureIncompat; // incompatible feature set
 	// journal has block revocatiuon records
-	#define EXT4_JBD2_SuperBlk_Incompat_Revoke		0x1
+	#define EXT4_JBD2_SuperBlk_Incompat_Revoke			0x1
 	// journal can deal with 64-bit block numbers
 	#define EXT4_JBD2_SuperBlk_Incompat_64Bit			0x2
 	// journal commits asynchronously
@@ -388,6 +388,25 @@ typedef struct EXT4_JBD2_CommitBlk {
 
 typedef struct EXT4_Inode {
 	u16 mode; // file mode
+	#define EXT4_Inode_mode_ExecOther 		0x1
+	#define EXT4_Inode_mode_WriteOther		0x2
+	#define EXT4_Inode_mode_ReadOther		0x4
+	#define EXT4_Inode_mode_ExecGrpMem		0x8
+	#define EXT4_Inode_mode_WriteGrpMem		0x10
+	#define EXT4_Inode_mode_ReadGrpMem		0x20
+	#define EXT4_Inode_mode_ExecOwner		0x40
+	#define EXT4_Inode_mode_WriteOwner		0x80
+	#define EXT4_Inode_mode_ReadOwner		0x100
+	#define EXT4_Inode_mode_StickyBit		0x200
+	#define EXT4_Inode_mode_SetGID			0x400
+	#define EXT4_Inode_mode_SetUID			0x800
+	#define EXT4_Inode_mode_FIFO			0x1000
+	#define EXT4_Inode_mode_ChrDev			0x2000
+	#define EXT4_Inode_mode_Dir				0x4000
+	#define EXT4_Inode_mode_BlkDev			0x6000
+	#define EXT4_Inode_mode_RegularFile		0x8000
+	#define EXT4_Inode_mode_SymbLk			0xA000
+	#define EXT4_Inode_mode_Socket			0xC000
 	u16 uidLow; // Owner UID
 	u32 szLow; // size in byte
 	// last access time, in seconds since the epoch, However, if the 
@@ -399,16 +418,78 @@ typedef struct EXT4_Inode {
 	u16 lkCnt;
 	u32 blkLow; // "block" count
 	u32 flags;
-	u8 osd1[4];
+	#define EXT4_Inode_flags_SecDel		0x1
+	// should be preserved, should undeletion be desired
+	#define EXT4_Inode_flags_Preserved	0x2
+	// file is compressed
+	#define EXT4_Inode_flags_Compress	0x4
+	// all writes to the file must be synchronous
+	#define EXT4_Inode_flags_Sync		0x8
+	#define EXT4_Inode_flags_Immutable	0x10
+	// file can only be appended
+	#define EXT4_Inode_flags_Append		0x20
+	// the dump utility should not dump this file
+	#define EXT4_Inode_flags_NoDump		0x40
+	// do not update access time
+	#define EXT4_Inode_flags_NoAccTime	0x80
+	// dirty compressed file
+	#define EXT4_Inode_flags_DirtyCmpr	0x100
+	// file has one or more compressed clusters
+	#define EXT4_Inode_flags_ComprBlk	0x200
+	// do not compress file
+	#define EXT4_Inode_flags_NoCompr	0x400
+	// Encrypted inode
+	#define EXT4_Inode_flags_Encrypt	0x800
+	// directory has hashed indexes
+	#define EXT4_Inode_flags_DirHash	0x1000
+	// AFS magic directory
+	#define EXT4_Inode_flags_AFSMagic	0x2000
+	// file data must always be written through the journal
+	#define EXT4_Inode_flags_JrlData	0x4000
+	// file tail should not be merged (not used by ext4)
+	#define EXT4_Inode_flags_NoTail		0x8000
+	// all directory entry data should be written synchronously
+	#define EXT4_Inode_flags_DirSync	0x10000
+	// top of directory hierarchy
+	#define EXT4_Inode_flags_TopDir		0x20000
+	#define EXT4_Inode_flags_HugeFile	0x40000
+	#define EXT4_Inode_flags_Extents	0x80000
+	// inode store a large extended attribute value in its data blocks
+	#define EXT4_Inode_flags_ExtAttr	0x100000
+	#define EXT4_Inode_flags_InlineData		0x10000000
+	// create children with the same project ID
+	#define EXT4_Inode_flags_ProjInherit	0x20000000
+	// reserved for ext4 library
+	#define EXT4_Inode_flags_Reserved		0x80000000
+	union {
+		u8 osd1[4];
+		struct {
+			u32 inodeVersion;
+		} __attribute__ ((packed)) osd1_linux;
+		struct {
+			u32 translator;
+		} __attribute__ ((packed)) osd1_hurd;
+	}__attribute__ ((packed));
 	u32 blk; // block map or extent tree
 	u32 generation; // file version (for NFS)
 	u32 fileAclLow;
 	union {
 		u32 szHigh;
 		u32 dirAcl;
-	};
+	}__attribute__ ((packed)) ;
 	u32 obsoFragAddr; // (Obsolete) fragment address
-	u8 osd2[12];
+	union {
+		u8 osd2[12];
+		struct {
+			// upper 16-bit of the block count
+			u16 blkHigh;
+			u16 fileAclHigh;
+			u16 uidHigh;
+			u16 gidHigh;
+			u16 chksumLow;
+			u16 reserved;
+		} __attribute__ ((packed)) osd2_linux;
+	} __attribute__ ((packed));
 	u16 extraInodeSz; // size of this inode - 128 byte
 	u16 chksumHigh;
 	u32 chgTimeExtra;
