@@ -87,7 +87,7 @@ typedef struct EXT4_SuperBlk {
 	#define EXT4_SuperBlk_RoCompat_BtreeDir			0x4
 	// this filesystem has files whose sizes are represented in units of logical blocks, not 512-byte sectors
 	#define EXT4_SuperBlk_RoCompat_HugeFile			0x8
-	// group descriptors have checksums
+	// group descripo.rs have checksums
 	#define EXT4_SuperBlk_RoCompat_GDTChksum		0x10
 	// indicates that the old ext3 32000 subdirectory limit no longer applies
 	#define EXT4_SuperBlk_RoCompat_DirNLink			0x20
@@ -470,7 +470,7 @@ typedef struct EXT4_Inode {
 			u32 translator;
 		} __attribute__ ((packed)) osd1_hurd;
 	}__attribute__ ((packed));
-	u32 blk; // block map or extent tree
+	u32 blk[15]; // block map or extent tree
 	u32 generation; // file version (for NFS)
 	u32 fileAclLow;
 	union {
@@ -500,4 +500,64 @@ typedef struct EXT4_Inode {
 	u32 verHigh;
 	u32 projId;
 } __attribute__ ((packed)) EXT4_Inode;
+
+typedef struct EXT4_ExtentHdr {
+	u16 magic; // 0xf30a
+	u16 entries; // number of valid entries following the header
+	u16 maxEntries; // maximum number of entries that could follow the header
+	/*
+	depth of theis extent node in the extent tree.
+	0= this extent node points to data blocks
+	otherwise= points to other extent nodes.
+	The extent tree can be at most 5 levels deep; 
+	a logical block number can be at most 2^32, and the smallest n that satisfies 4 * (((blkSz - 12) / 12) ^ n) >= 2^32 is 5
+	*/
+	u16 depth;
+	u32 generation;
+} __attribute__ ((packed)) EXT4_ExtentHdr;
+
+typedef struct EXT4_ExtentIdx {
+	u32 blk; // this index node covers file blocks from 'block' onward
+	// block number of the extent node that is the next level lower in the tree.
+	u32 leafLow;
+	u16 leafHigh;
+	u16 unused;
+} __attribute__ ((packed)) EXT4_ExtentIdx;
+
+typedef struct EXT4_Extent {
+	u32 blk; // first file block number that this extent covers
+	// number of blocks covered by extent
+	// <=32768; initialized
+	// > 32768; uninitialized and actual size is len - 32768
+	u16 len;
+	u16 startHigh; // block number to which this extent points
+	u32 startLow;
+} __attribute__ ((packed)) EXT4_Extent;
+
+typedef struct EXT4_ExtentTail {
+	u32 chksum;
+} __attribute__ ((packed)) EXT4_ExtentTail;
+
+typedef struct EXT4_DirEntry {
+	u32 inode; // number of the inode that this directory entry points to
+	u16 recLen; // length of this directory entry. Must be a multiple of 4
+	u16 nameLen; // length of the file name
+	u8 name[255];
+} __attribute__ ((packed)) EXT4_DirEntry;
+
+typedef struct EXT4_DirEntryFile {
+	u32 inode;
+	u16 recLen;
+	u8 nameLen;
+	u8 fileType;
+	u8 name[255];
+} __attribute__ ((packed)) EXT4_DirEntryFile;
+
+typedef struct EXT4_DirEntryTail {
+	u32 reservedZ;
+	u16 recLen;
+	u8 reservedZ2;
+	u8 reserved; // must be 0xde
+	u32 chksum;
+} __attribute__ ((packed)) EXT4_DirEntryTail;
 #endif
