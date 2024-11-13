@@ -7,4 +7,5 @@
 /Tools/kallsyms.S
 /kernel/.depend
 /gcc-4.7
-/a.log
+*.log
+*.img

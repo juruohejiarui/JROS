@@ -18,6 +18,19 @@ void HW_NVMe_initQue(NVMe_QueMgr *queMgr, u64 queSize, u64 attr) {
 	} else queMgr->submSrc = NULL;
 }
 
+int HW_NVMe_insSubm(NVMe_QueMgr *queMgr, NVMe_Request *req) {
+	req->attr = 0;
+	SpinLock_lock(&queMgr->lock);
+	if (queMgr->len == queMgr->desc.size) {
+		SpinLock_unlock(&queMgr->lock);
+		return 0;
+	}
+	memcpy(&req->entry, ((NVMe_SubmQueEntry *)queMgr->que) + queMgr->til, sizeof(NVMe_SubmQueEntry));
+	queMgr->til++;
+	
+	SpinLock_unlock(&queMgr->lock);
+}
+
 // initialize the device and create a management task, return the device if successfully.
 NVMe_Host *HW_NVMe_initDevice(PCIeConfig *pciCfg) {
 	NVMe_Host *host = kmalloc(sizeof(NVMe_Host), Slab_Flag_Clear, NULL);

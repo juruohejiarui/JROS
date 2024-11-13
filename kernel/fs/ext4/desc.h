@@ -560,4 +560,28 @@ typedef struct EXT4_DirEntryTail {
 	u8 reserved; // must be 0xde
 	u32 chksum;
 } __attribute__ ((packed)) EXT4_DirEntryTail;
+
+typedef struct EXT4_DirHashRoot {
+	u32 inode; // inode number of this directory
+	u16 recordlen; // length of this record,12.
+	u8 nameLen; // length of this name, 1
+	u8 fileType; // file type of this entry, 0x2, (if the feature flag is set)
+	i8 name[4]; // ".\0\0\0"
+	u32 parInode; // inode number of parent directory
+	u16 parRecordLen; // block_size - 12. The record length is long enough to cover all htree data
+	u8 parNameLen; // length of the name, 2.
+	u8 parFileType; // file type of this entry, 0x2
+	i8 name[4]; // "..\0\0"
+	u32 resZ;
+	u8 hashVer;
+	u8 infoLen;
+	u8 indirectLvl;
+	u8 unusedFlags;
+	// maximum number of DirHashRoot that can follow this header plus 1 for the header itself
+	u16 lmt;
+	// actual number of DirHashEntries that follow this header, plus 1 for the header it self
+	u16 cnt;
+	// the block number that goes width hash=0
+	u32 blk;
+} __attribute__ ((packed)) EXT4_DirHashRoot;
 #endif
