@@ -571,7 +571,7 @@ typedef struct EXT4_DirHashRoot {
 	u16 parRecordLen; // block_size - 12. The record length is long enough to cover all htree data
 	u8 parNameLen; // length of the name, 2.
 	u8 parFileType; // file type of this entry, 0x2
-	i8 name[4]; // "..\0\0"
+	i8 parName[4]; // "..\0\0"
 	u32 resZ;
 	u8 hashVer;
 	u8 infoLen;

@@ -54,6 +54,8 @@ typedef struct NVMe_Host {
 
 	NVMe_QueMgr adminSubmQue, adminCmplQue;
 	NVMe_QueMgr ioSubmQue[64], ioCmplQue[64];
+
+	u64 cap, capStride;
 	
 } NVMe_Host;
 

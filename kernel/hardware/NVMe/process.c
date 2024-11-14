@@ -41,7 +41,12 @@ NVMe_Host *HW_NVMe_initDevice(PCIeConfig *pciCfg) {
 
 	if ((u64)host->regs >= MM_DMAS_bsSize)
 		Task_mapKrlPage((u64)host->regs, DMAS_virt2Phys(host->regs), MM_PageTable_Flag_Presented | MM_PageTable_Flag_Writable);
-	return NULL;
+	
+	host->cap = *(u64 *)(host->regs);
+	host->capStride = (1ul << (2 + ((host->cap >> 32) & 0x7ul)));
+	printk(WHITE, BLACK, "NVMe: %#018lx: cap:%#018lx capStride:%d\n", host, host->cap, host->capStride);
+	
+	return host;
 }
 
 void HW_NVMe_init() {
