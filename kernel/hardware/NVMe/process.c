@@ -45,6 +45,19 @@ NVMe_Host *HW_NVMe_initDevice(PCIeConfig *pciCfg) {
 	host->cap = *(u64 *)(host->regs);
 	host->capStride = (1ul << (2 + ((host->cap >> 32) & 0x7ul)));
 	printk(WHITE, BLACK, "NVMe: %#018lx: cap:%#018lx capStride:%d\n", host, host->cap, host->capStride);
+
+	for (PCIe_CapabilityHeader *hdr = HW_PCIe_getNxtCapHdr(host->pci, NULL); hdr; hdr = HW_PCIe_getNxtCapHdr(host->pci, hdr)) {
+		switch (hdr->capId) {
+			case PCIe_CapId_MSI :
+				printk(WHITE, BLACK, "NVMe: %#018lx: MSI support\n");
+				break;
+			case PCIe_CapId_MSIX :
+				printk(WHITE, BLACK, "NVMe: %#018lx: MSI-X support\n");
+				break;
+			default :
+				break;
+		}
+	}
 	
 	return host;
 }

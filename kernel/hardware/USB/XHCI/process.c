@@ -50,7 +50,7 @@ void HW_USB_XHCI_init(PCIeManager *pci) {
 				host->msiCapDesc = container(hdr, PCIe_MSICapability, hdr);
 				break;
 			case PCIe_CapId_MSIX:
-				host->msixCapDesc = container(hdr, PCIe_MSIXCapability, hdr);
+				host->msixCapDesc = container(hdr, PCIe_MSIXCap, hdr);
 				break;
 		}
 	}

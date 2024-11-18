@@ -163,8 +163,8 @@ void HW_PCIe_MSIX_setMsgAddr(PCIe_MSIX_Table *tbl, int intrId, u32 apicId, int r
 	tbl[intrId].msgAddr = 0xfee00000u | (apicId << 12) | (redirect << 3) | (destMode << 2);
 }
 
-PCIe_MSIX_Table *HW_PCIe_MSIX_getTable(PCIeConfig *cfg, PCIe_MSIXCapability *cap) {
-	void *tblAddr = DMAS_phys2Virt((*(u64 *)&cfg->type0.bar[PCIe_MSIXCapability_bir(cap)] & ~0xf) + PCIe_MSIXCapability_tblOff(cap));
+PCIe_MSIX_Table *HW_PCIe_MSIX_getTable(PCIeConfig *cfg, PCIe_MSIXCap *cap) {
+	void *tblAddr = DMAS_phys2Virt((*(u64 *)&cfg->type0.bar[PCIe_MSIXCap_bir(cap)] & ~0xf) + PCIe_MSIXCap_tblOff(cap));
     if ((u64)tblAddr >= MM_DMAS_bsSize) Task_mapKrlPage((u64)tblAddr, DMAS_virt2Phys(tblAddr), MM_PageTable_Flag_Presented | MM_PageTable_Flag_Writable);
     return tblAddr;
 }

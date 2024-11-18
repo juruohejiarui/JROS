@@ -92,16 +92,17 @@ typedef struct PCIe_MSICapability {
 	u32 pending;
 } __attribute__ ((packed)) PCIe_MSICapability;
 
-typedef struct PCIe_MSIXCapability {
+typedef struct PCIe_MSIXCap {
 	PCIe_CapabilityHeader hdr;
 	u16 msgCtrl;
+    #define PCIe_MSIXCap_msgCtrl_vecNum(cap) ((cap)->msgCtrl & ((1u << 11) - 1))
 	u32 dw1;
-	#define PCIe_MSIXCapability_bir(cap) ((cap)->dw1 & 0x7)
-	#define PCIe_MSIXCapability_tblOff(cap) ((cap)->dw1 & ~0x7u)
+	#define PCIe_MSIXCap_bir(cap) ((cap)->dw1 & 0x7)
+	#define PCIe_MSIXCap_tblOff(cap) ((cap)->dw1 & ~0x7u)
 	u32 dw2;
-	#define PCIe_MSIXCapability_pendingBir(cap) ((cap)->dw2 & 0x7)
-	#define PCIe_MSIXCapability_pendingTblOff(cap) ((cap)->dw2 & ~0x7u)
-} __attribute__ ((packed)) PCIe_MSIXCapability;
+	#define PCIe_MSIXCap_pendingBir(cap) ((cap)->dw2 & 0x7)
+	#define PCIe_MSIXCap_pendingTblOff(cap) ((cap)->dw2 & ~0x7u)
+} __attribute__ ((packed)) PCIe_MSIXCap;
 
 typedef struct PCIe_MSIX_Table {
 	u64 msgAddr;
@@ -140,7 +141,7 @@ void HW_PCIe_MSI_unmaskIntr(PCIe_MSICapability *cap, int intrId);
 void HW_PCIe_MSI_setMsgAddr(PCIe_MSICapability *msi, u32 apicId, int redirect, int destMode);
 void HW_PCIe_MSI_setMsgData(PCIe_MSICapability *msi, u32 vec, u32 deliverMode, u32 level, u32 triggerMode);
 
-PCIe_MSIX_Table *HW_PCIe_MSIX_getTable(PCIeConfig *cfg, PCIe_MSIXCapability *cap);
+PCIe_MSIX_Table *HW_PCIe_MSIX_getTable(PCIeConfig *cfg, PCIe_MSIXCap *cap);
 void HW_PCIe_MSIX_setMsgAddr(PCIe_MSIX_Table *tbl, int intrId, u32 apicId, int redirect, int destMode);
 void HW_PCIe_MSIX_setMsgData(PCIe_MSIX_Table *tbl, int intrId, u32 vec, u32 deliverMode, u32 level, u32 triggerMode);
 void HW_PCIe_MSIX_maskIntr(PCIe_MSIX_Table *tbl, int intrId);

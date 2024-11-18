@@ -19,8 +19,11 @@ static __always_inline__ u64 HW_NVMe_readReg64(NVMe_Host *host, u64 offset) {
 
 
 static __always_inline__ void HW_NVMe_ringSubmDb(NVMe_Host *host, NVMe_QueMgr *queMgr) {
+	HW_NVMe_writeReg32(host, 0x1000 + 2 * queMgr->iden * host->capStride, queMgr->til);
 }
-void HW_NVMe_ringCmplDb(NVMe_Host *host, NVMe_QueMgr *queMgr);
+static __always_inline__ void HW_NVMe_ringCmplDb(NVMe_Host *host, NVMe_QueMgr *queMgr) {
+	HW_NVMe_writeReg32(host, 0x1000 + (2 * queMgr->iden + 1) * host->capStride, queMgr->hdr);
+}
 void HW_NVMe_initQue(NVMe_QueMgr *queMgr, u64 queSize, u64 attr);
 NVMe_Host *HW_NVMe_initDevice(PCIeConfig *pciCfg);
 void HW_NVMe_init();

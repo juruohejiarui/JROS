@@ -308,7 +308,7 @@ typedef struct XHCI_Host {
 	List listEle;
 	PCIeManager *pci;
 	PCIe_MSICapability *msiCapDesc;
-	PCIe_MSIXCapability *msixCapDesc;
+	PCIe_MSIXCap *msixCapDesc;
 
 	// this address is the virtual address
 	u64 capRegAddr;

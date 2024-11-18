@@ -36,7 +36,7 @@ typedef struct NVMe_CmplQueEntry {
 typedef struct NVMe_QueMgr {
 	NVMe_QueDesc desc;
 	u64 hdr, til, len;
-	u64 attr;
+	u64 attr, iden;
 	#define NVMe_QueMgr_attr_isSubmQue		(1ul << 0)
 	#define NVMe_QueMgr_attr_isAdmQue		(1ul << 1)
 	void *que;
