@@ -44,10 +44,10 @@ void HW_USB_XHCI_init(PCIeManager *pci) {
 	XHCI_Host *host = kmalloc(sizeof(XHCI_Host), Slab_Flag_Clear, NULL);
 	List_init(&host->listEle);
 	printk(WHITE, BLACK, "capPtr:%x\n", pci->cfg->type0.capPtr);
-	for (PCIe_CapabilityHeader *hdr = HW_PCIe_getNxtCapHdr(pci->cfg, NULL); hdr; hdr = HW_PCIe_getNxtCapHdr(pci->cfg, hdr)) {
+	for (PCIe_CapHdr *hdr = HW_PCIe_getNxtCapHdr(pci->cfg, NULL); hdr; hdr = HW_PCIe_getNxtCapHdr(pci->cfg, hdr)) {
 		switch (hdr->capId) {
 			case  PCIe_CapId_MSI:
-				host->msiCapDesc = container(hdr, PCIe_MSICapability, hdr);
+				host->msiCapDesc = container(hdr, PCIe_MSICap, hdr);
 				break;
 			case PCIe_CapId_MSIX:
 				host->msixCapDesc = container(hdr, PCIe_MSIXCap, hdr);
@@ -140,12 +140,12 @@ void HW_USB_XHCI_init(PCIeManager *pci) {
 
 	// set up msix/msi first
 	if (host->msixCapDesc) {
-		int vecNum = host->msixCapDesc->msgCtrl & ((1u << 11) - 1);
+		int vecNum = PCIe_MSIXCap_vecNum(host->msixCapDesc);
 		PCIe_MSIX_Table *tbl = HW_PCIe_MSIX_getTable(host->pci->cfg, host->msixCapDesc);
 		printk(WHITE, BLACK, "XHCI: %#018lx: msix:%#018lx vecNum:%d msgCtrl:%#010x\n", host, tbl, vecNum + 1, host->msixCapDesc->msgCtrl);
-		host->msiDesc = kmalloc(sizeof(PCIe_MSI_Descriptor) * (vecNum + 1), Slab_Flag_Clear, NULL);
+		host->msiDesc = kmalloc(sizeof(PCIe_MSI_Descriptor) * vecNum, Slab_Flag_Clear, NULL);
 		int cpuId = 0; u8 vec;
-		for (int i = 0; i <= vecNum && i <= host->enabledIntrNum; i++) {
+		for (int i = 0; i < vecNum && i <= host->enabledIntrNum; i++) {
 			SMP_allocIntrVec(1, cpuId, &cpuId, &vec);
 			if (cpuId == -1) {
 				printk(RED, BLACK, "XHCI: %#018lx: failed to allocate interrupt vector for intr #%d\n", host, i);
@@ -161,7 +161,7 @@ void HW_USB_XHCI_init(PCIeManager *pci) {
 	} else {
 		// register MSI register
 		int cpuId; u8 vecSt;
-		int vecNum = (1 << ((host->msiCapDesc->msgCtrl >> 1) & 0x7));
+		int vecNum = PCIe_MSICap_vecNum(host->msiCapDesc);
 		host->enabledIntrNum = vecNum = min(host->enabledIntrNum, vecNum);
 		host->eveHandleTaskNum = min(host->eveHandleTaskNum, 4);
 		SMP_allocIntrVec(vecNum, 0, &cpuId, &vecSt);
@@ -190,9 +190,9 @@ void HW_USB_XHCI_init(PCIeManager *pci) {
 
 	if (host->msixCapDesc) {
 		PCIe_MSIX_Table *tbl = HW_PCIe_MSIX_getTable(host->pci->cfg, host->msixCapDesc);
-		int vecNum = (host->msixCapDesc->msgCtrl) & ((1u << 11) - 1);
-		for (int i = 0; i <= vecNum; i++) HW_PCIe_MSIX_unmaskIntr(tbl, i);
-		host->msixCapDesc->msgCtrl |= (1u << 15);
+		int vecNum = PCIe_MSIXCap_vecNum(host->msixCapDesc);
+		for (int i = 0; i < vecNum; i++) HW_PCIe_MSIX_unmaskIntr(tbl, i);
+		HW_PCIe_MSIX_enable(host->msixCapDesc);
 	} else {
 		// disable mask
 		if (host->msiCapDesc->msgCtrl & (1 << 8)) host->msiCapDesc->mask = 0;

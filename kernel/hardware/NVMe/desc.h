@@ -57,6 +57,12 @@ typedef struct NVMe_Host {
 
 	u64 cap, capStride;
 	
+	PCIe_MSIXCap *msixCapDesc;
+	PCIe_MSIX_Table *msixTbl;
+	PCIe_MSICap *msiCapDesc;
+	PCIe_MSI_Descriptor *msiDesc;
+	int enabledIntrNum;
+	
 } NVMe_Host;
 
 #define NVMe_Reg_Cap		0x00

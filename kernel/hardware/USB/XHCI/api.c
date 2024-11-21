@@ -86,8 +86,8 @@ void *HW_USB_XHCI_getNxtECP(XHCI_Host *host, void *cur) {
 }
 
 void HW_USB_XHCI_freeRing(XHCI_Ring *ring) {
-	if (ring->ring) kfree(ring, 0);
-	if (ring->reqSrc) kfree(ring, 0);
+	if (ring->ring) kfree(ring->ring, 0);
+	if (ring->reqSrc) kfree(ring->reqSrc, 0);
 }
 
 XHCI_Ring *HW_USB_XHCI_allocRing(u64 size) {
@@ -182,7 +182,6 @@ void HW_USB_XHCI_freeEveRing(XHCI_EveRing *ring) {
 	for (int i = 0; i < ring->ringNum; i++)
 		kfree(ring->rings[i], 0);
 	kfree(ring->rings, 0);
-	kfree(ring, 0);
 }
 
 XHCI_EveRing *HW_USB_XHCI_allocEveRing(u32 num, u32 size) {

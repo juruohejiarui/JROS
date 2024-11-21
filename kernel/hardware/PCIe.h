@@ -77,25 +77,26 @@ typedef struct {
 	PCIeStruct structs[0];
 } __attribute__ ((packed)) PCIeDescriptor;
 
-typedef struct PCIe_CapabilityHeader {
+typedef struct PCIe_CapHdr {
 	u8 capId;
 	u8 nxtPtr;
-} __attribute__ ((packed)) PCIe_CapabilityHeader;
+} __attribute__ ((packed)) PCIe_CapHdr;
 
-typedef struct PCIe_MSICapability {
-	PCIe_CapabilityHeader hdr;
+typedef struct PCIe_MSICap {
+	PCIe_CapHdr hdr;
 	u16 msgCtrl;
+	#define PCIe_MSICap_vecNum(cap) (1u << (((cap)->msgCtrl >> 1) & 0x7))
 	u64 msgAddr;
 	u16 msgData;
 	u16 reserved;
 	u32 mask;
 	u32 pending;
-} __attribute__ ((packed)) PCIe_MSICapability;
+} __attribute__ ((packed)) PCIe_MSICap;
 
 typedef struct PCIe_MSIXCap {
-	PCIe_CapabilityHeader hdr;
+	PCIe_CapHdr hdr;
 	u16 msgCtrl;
-    #define PCIe_MSIXCap_msgCtrl_vecNum(cap) ((cap)->msgCtrl & ((1u << 11) - 1))
+    #define PCIe_MSIXCap_vecNum(cap) (((cap)->msgCtrl & ((1u << 11) - 1)) + 1)
 	u32 dw1;
 	#define PCIe_MSIXCap_bir(cap) ((cap)->dw1 & 0x7)
 	#define PCIe_MSIXCap_tblOff(cap) ((cap)->dw1 & ~0x7u)
@@ -125,9 +126,9 @@ static __always_inline__ PCIeConfig *HW_PCIe_getDevPtr(u64 addrBase, u8 bus, u8 
     return (PCIeConfig *)DMAS_phys2Virt(addrBase | ((u64)bus << 20) | ((u64)slot << 15) | ((u64)func << 12));
 }
 
-static __always_inline__ PCIe_CapabilityHeader *HW_PCIe_getNxtCapHdr(PCIeConfig *cfg, PCIe_CapabilityHeader *hdr) {
-	if (hdr) return hdr->nxtPtr ? (PCIe_CapabilityHeader *)((u64)cfg + hdr->nxtPtr) : NULL;
-	return (PCIe_CapabilityHeader *)((u64)cfg + cfg->type0.capPtr);
+static __always_inline__ PCIe_CapHdr *HW_PCIe_getNxtCapHdr(PCIeConfig *cfg, PCIe_CapHdr *hdr) {
+	if (hdr) return hdr->nxtPtr ? (PCIe_CapHdr *)((u64)cfg + hdr->nxtPtr) : NULL;
+	return (PCIe_CapHdr *)((u64)cfg + cfg->type0.capPtr);
 }
 
 List *HW_PCIe_getMgrList();
@@ -135,13 +136,15 @@ void HW_PCIe_init();
 
 void HW_PCIe_MSI_initDesc(PCIe_MSI_Descriptor *desc, int cpuId, int irqId, IntrHandler handler, u64 param);
 void HW_PCIe_MSI_setIntr(PCIe_MSI_Descriptor *desc);
-void HW_PCIe_MSI_maskIntr(PCIe_MSICapability *cap, int intrId);
-void HW_PCIe_MSI_unmaskIntr(PCIe_MSICapability *cap, int intrId);
+void HW_PCIe_MSI_maskIntr(PCIe_MSICap *cap, int intrId);
+void HW_PCIe_MSI_unmaskIntr(PCIe_MSICap *cap, int intrId);
 
-void HW_PCIe_MSI_setMsgAddr(PCIe_MSICapability *msi, u32 apicId, int redirect, int destMode);
-void HW_PCIe_MSI_setMsgData(PCIe_MSICapability *msi, u32 vec, u32 deliverMode, u32 level, u32 triggerMode);
+void HW_PCIe_MSI_setMsgAddr(PCIe_MSICap *msi, u32 apicId, int redirect, int destMode);
+void HW_PCIe_MSI_setMsgData(PCIe_MSICap *msi, u32 vec, u32 deliverMode, u32 level, u32 triggerMode);
 
 PCIe_MSIX_Table *HW_PCIe_MSIX_getTable(PCIeConfig *cfg, PCIe_MSIXCap *cap);
+static __always_inline__ void HW_PCIe_MSIX_enable(PCIe_MSIXCap *cap) { cap->msgCtrl |= (1u << 15); }
+static __always_inline__ void HW_PCIe_MSIX_disable(PCIe_MSIXCap *cap) { cap->msgCtrl &= ~(1ul << 15); }
 void HW_PCIe_MSIX_setMsgAddr(PCIe_MSIX_Table *tbl, int intrId, u32 apicId, int redirect, int destMode);
 void HW_PCIe_MSIX_setMsgData(PCIe_MSIX_Table *tbl, int intrId, u32 vec, u32 deliverMode, u32 level, u32 triggerMode);
 void HW_PCIe_MSIX_maskIntr(PCIe_MSIX_Table *tbl, int intrId);

@@ -92,7 +92,7 @@ void HW_PCIe_init() {
 
 void HW_PCIe_MSI_dispatcher(u64 rsp, u64 irqId) {
 	SMP_CPUInfoPkg *pkg = SMP_current;
-	if (!pkg->intrDesc[irqId - 0x40]) { printk(WHITE, BLACK, "No handler for pci irq %#04x\n", irqId); return ; }
+	if (!pkg->intrDesc[irqId - 0x40]) { printk(WHITE, BLACK, "No handler for pci irq %#04x on cpu %d\n", irqId, Task_current->cpuId); return ; }
 	PCIe_MSI_Descriptor *desc = container(pkg->intrDesc[irqId - 0x40], PCIe_MSI_Descriptor, intrDesc);
 	desc->intrDesc.handler(desc->intrDesc.param, (PtReg *)rsp);
 	desc->intrDesc.controller->ack(irqId);
@@ -143,19 +143,19 @@ void HW_PCIe_MSI_setIntr(PCIe_MSI_Descriptor *desc) {
 	Intr_Gate_setSMPIntr(desc->cpuId, desc->vec, 0, HW_PCIe_MSI_intrList[desc->vec - 0x40]);
 }
 
-void HW_PCIe_MSI_maskIntr(PCIe_MSICapability *cap, int intrId) {
+void HW_PCIe_MSI_maskIntr(PCIe_MSICap *cap, int intrId) {
     if (intrId != -1) cap->mask |= (1u << intrId);
     else cap->mask = 0xffffffffu;
 }
-void HW_PCIe_MSI_unmaskIntr(PCIe_MSICapability *cap, int intrId) {
+void HW_PCIe_MSI_unmaskIntr(PCIe_MSICap *cap, int intrId) {
     if (intrId != -1) cap->mask &= ~(1u << intrId);
     else cap->mask = 0;
 }
-void HW_PCIe_MSI_setMsgAddr(PCIe_MSICapability *msi, u32 apicId, int redirect, int destMode) {
+void HW_PCIe_MSI_setMsgAddr(PCIe_MSICap *msi, u32 apicId, int redirect, int destMode) {
 	msi->msgAddr = 0xfee00000u | (apicId << 12) | (redirect << 3) | (destMode << 2);
 }
 
-void HW_PCIe_MSI_setMsgData(PCIe_MSICapability *msi, u32 vec, u32 deliverMode, u32 level, u32 triggerMode) {
+void HW_PCIe_MSI_setMsgData(PCIe_MSICap *msi, u32 vec, u32 deliverMode, u32 level, u32 triggerMode) {
 	msi->msgData = vec | (deliverMode << 8) | (level << 14) | (triggerMode << 15);
 }
 
