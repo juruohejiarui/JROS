@@ -52,8 +52,8 @@ typedef struct NVMe_Host {
 	PCIeConfig *pci;
 	void *regs;
 
-	NVMe_QueMgr adminSubmQue, adminCmplQue;
-	NVMe_QueMgr ioSubmQue[64], ioCmplQue[64];
+	NVMe_QueMgr *adminSubmQue, *adminCmplQue;
+	NVMe_QueMgr *ioSubmQue[64], *ioCmplQue[64];
 
 	u64 cap, capStride;
 	

@@ -34,7 +34,6 @@ int HW_NVMe_insSubm(NVMe_QueMgr *queMgr, NVMe_Request *req) {
 	}
 	memcpy(&req->entry, ((NVMe_SubmQueEntry *)queMgr->que) + queMgr->til, sizeof(NVMe_SubmQueEntry));
 	queMgr->til++;
-	
 	SpinLock_unlock(&queMgr->lock);
 }
 
@@ -114,6 +113,14 @@ NVMe_Host *HW_NVMe_initDevice(PCIeConfig *pciCfg) {
 	}
 	// disable the INTx
 	host->pci->command |= (1 << 10);
+
+	// setup admin submission queue and completition queue
+	host->adminCmplQue = HW_NVMe_allocQue(Page_4KSize / sizeof(NVMe_CmplQueEntry), NVMe_QueMgr_attr_isAdmQue);
+	host->adminSubmQue = HW_NVMe_allocQue(Page_4KSize / sizeof(NVMe_SubmQueEntry), NVMe_QueMgr_attr_isSubmQue | NVMe_QueMgr_attr_isAdmQue);
+	
+	HW_NVMe_writeReg64(host, NVMe_Reg_AdmSubmQue, DMAS_virt2Phys(host->adminSubmQue->desc.addr));
+	HW_NVMe_writeReg64(host, NVMe_Reg_AdmCmplQue, DMAS_virt2Phys(host->adminCmplQue->desc.addr));
+
 	
 	return host;
 }
