@@ -25,16 +25,29 @@ void HW_NVMe_freeQue(NVMe_QueMgr *queMgr) {
 	if (queMgr->que != NULL) kfree(queMgr->que, 0);
 }
 
+// return the tail index of the inserted request, return -1 if failed to insert
 int HW_NVMe_insSubm(NVMe_QueMgr *queMgr, NVMe_Request *req) {
 	req->attr = 0;
 	SpinLock_lock(&queMgr->lock);
 	if (queMgr->len == queMgr->desc.size) {
 		SpinLock_unlock(&queMgr->lock);
-		return 0;
+		return -1;
 	}
 	memcpy(&req->entry, ((NVMe_SubmQueEntry *)queMgr->que) + queMgr->til, sizeof(NVMe_SubmQueEntry));
 	queMgr->til++;
+	queMgr->len++;
 	SpinLock_unlock(&queMgr->lock);
+	if (queMgr->til == queMgr->desc.size) return queMgr->til = 0, queMgr->desc.size;
+	else return queMgr->til;
+}
+
+void HW_NVMe_mkSumEntry_IO(NVMe_SubmQueEntry *entry, u8 opcode, u32 nsid, void *data, u64 lba, u16 numBlks) {
+	memset(entry, 0, sizeof(entry));
+	entry->cmd = opcode;
+	entry->nsid = nsid;
+	entry->metaPtr = DMAS_virt2Phys(data);
+	*(u64 *)entry->cmdSpec = lba;
+	entry->cmdSpec[2] = numBlks - 1;
 }
 
 // initialize the device and create a management task, return the device if successfully.

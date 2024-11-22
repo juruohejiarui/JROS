@@ -24,7 +24,10 @@ static __always_inline__ void HW_NVMe_ringSubmDb(NVMe_Host *host, NVMe_QueMgr *q
 static __always_inline__ void HW_NVMe_ringCmplDb(NVMe_Host *host, NVMe_QueMgr *queMgr) {
 	HW_NVMe_writeReg32(host, 0x1000 + (2 * queMgr->iden + 1) * host->capStride, queMgr->hdr);
 }
-
+void HW_NVMe_mkSumEntry_IO(NVMe_SubmQueEntry *entry, u8 opcode, u32 nsid, void *data, u64 lba, u16 numBlks);
+void HW_NVMe_mkSubmEntry_NewSubm(NVMe_SubmQueEntry *entry, NVMe_QueMgr *queMgr, NVMe_QueMgr *cmplQueMgr);
+void HW_NVMe_mkSubmEntry_NewCmpl(NVMe_SubmQueEntry *entry, NVMe_QueMgr *queMgr, u8 intrId);
+void HW_NVMe_mkSubmEntry_Iden(NVMe_SubmQueEntry *entry, void *data, u8 type, u32 nspId);
 
 NVMe_QueMgr *HW_NVMe_allocQue(u64 queSize, u64 attr);
 void HW_NVMe_freeQue(NVMe_QueMgr *queMgr);
