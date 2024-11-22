@@ -141,6 +141,7 @@ void HW_PCIe_MSI_unmaskIntr(PCIe_MSICap *cap, int intrId);
 
 void HW_PCIe_MSI_setMsgAddr(PCIe_MSICap *msi, u32 apicId, int redirect, int destMode);
 void HW_PCIe_MSI_setMsgData(PCIe_MSICap *msi, u32 vec, u32 deliverMode, u32 level, u32 triggerMode);
+void HW_PCIe_MSI_enableAll(PCIe_MSICap *cap);
 
 PCIe_MSIX_Table *HW_PCIe_MSIX_getTable(PCIeConfig *cfg, PCIe_MSIXCap *cap);
 static __always_inline__ void HW_PCIe_MSIX_enable(PCIe_MSIXCap *cap) { cap->msgCtrl |= (1u << 15); }
@@ -149,6 +150,7 @@ void HW_PCIe_MSIX_setMsgAddr(PCIe_MSIX_Table *tbl, int intrId, u32 apicId, int r
 void HW_PCIe_MSIX_setMsgData(PCIe_MSIX_Table *tbl, int intrId, u32 vec, u32 deliverMode, u32 level, u32 triggerMode);
 void HW_PCIe_MSIX_maskIntr(PCIe_MSIX_Table *tbl, int intrId);
 void HW_PCIe_MSIX_unmaskIntr(PCIe_MSIX_Table *tbl, int intrId);
+void HW_PCIe_MSIX_enableAll(PCIeConfig *cfg, PCIe_MSIXCap *cap);
 
 
 #endif

@@ -159,6 +159,13 @@ void HW_PCIe_MSI_setMsgData(PCIe_MSICap *msi, u32 vec, u32 deliverMode, u32 leve
 	msi->msgData = vec | (deliverMode << 8) | (level << 14) | (triggerMode << 15);
 }
 
+void HW_PCIe_MSI_enableAll(PCIe_MSICap *cap) {
+	// disable mask
+	if (cap->msgCtrl & (1 << 8)) cap->mask = 0;
+	// enable the interrupt
+	cap->msgCtrl |= (1 << 0);
+}
+
 void HW_PCIe_MSIX_setMsgAddr(PCIe_MSIX_Table *tbl, int intrId, u32 apicId, int redirect, int destMode) {
 	tbl[intrId].msgAddr = 0xfee00000u | (apicId << 12) | (redirect << 3) | (destMode << 2);
 }
@@ -179,4 +186,11 @@ void HW_PCIe_MSIX_maskIntr(PCIe_MSIX_Table *tbl, int intrId) {
 
 void HW_PCIe_MSIX_unmaskIntr(PCIe_MSIX_Table *tbl, int intrId) {
 	tbl[intrId].vecCtrl &= ~1u;
+}
+
+void HW_PCIe_MSIX_enableAll(PCIeConfig *cfg, PCIe_MSIXCap *cap) {
+	PCIe_MSIX_Table *tbl = HW_PCIe_MSIX_getTable(cfg, cap);
+	int vecNum = PCIe_MSIXCap_vecNum(cap);
+	for (int i = 0; i < vecNum; i++) HW_PCIe_MSIX_unmaskIntr(tbl, i);
+	HW_PCIe_MSIX_enable(cap);
 }

@@ -148,8 +148,6 @@ void HW_Timer_HPET_init() {
 	printk(YELLOW, BLACK, "HPET: Timer 0: cap&cfg:%#018lx \t", cfg0);
 	if (cfg0 & _TimerCfgCap_64Cap) printk(WHITE, BLACK, "64-bit supply: Y \t");
 	else printk(WHITE, BLACK, "64-bit supply:N \t");
-	if (cfg0 & _TimerCfgCap_PeriodCap) printk(WHITE, BLACK, "Period mode supply: Y\n");
-	else { printk(RED, BLACK, "Period supply:N \n"); while (1) IO_hlt(); }
 	_setTimerConfig(0, 0x40000004c);
 
 	_setTimerConfig(0, _TimerCfgCap_Enable | _TimerCfgCap_Period | _TimerCfgCap_SetVal | _TimerCfgCap_Irq(2));

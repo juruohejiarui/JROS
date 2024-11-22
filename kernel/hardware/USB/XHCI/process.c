@@ -188,17 +188,8 @@ void HW_USB_XHCI_init(PCIeManager *pci) {
 	// disable the INTx
 	pci->cfg->command |= (1 << 10);
 
-	if (host->msixCapDesc) {
-		PCIe_MSIX_Table *tbl = HW_PCIe_MSIX_getTable(host->pci->cfg, host->msixCapDesc);
-		int vecNum = PCIe_MSIXCap_vecNum(host->msixCapDesc);
-		for (int i = 0; i < vecNum; i++) HW_PCIe_MSIX_unmaskIntr(tbl, i);
-		HW_PCIe_MSIX_enable(host->msixCapDesc);
-	} else {
-		// disable mask
-		if (host->msiCapDesc->msgCtrl & (1 << 8)) host->msiCapDesc->mask = 0;
-		// enable the interrupt
-		host->msiCapDesc->msgCtrl |= (1 << 0);
-	}
+	if (host->msixCapDesc) HW_PCIe_MSIX_enableAll(host->pci->cfg, host->msixCapDesc);
+	else HW_PCIe_MSI_enableAll(host->msiCapDesc);
 
 	// allocate the device context base address array
 	u64 *dcbaa = kmalloc(2048, Slab_Flag_Clear, NULL);

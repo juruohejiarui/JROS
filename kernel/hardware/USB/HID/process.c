@@ -128,6 +128,7 @@ void HW_USB_HID_processKeyboard(XHCI_Device *dev, XHCI_InterDesc *inter, USB_HID
 			while (1) IO_hlt(); 
 		}
 		HW_USB_HID_parseReport(repRaw, helper, rep);
+		Intr_SoftIrq_Timer_mdelay(1);
 		printk(WHITE, BLACK, "K: %d %d %d %d %d %d %d\r", 
 				rep->items.keyboard.spK, 
 				rep->items.keyboard.key[0], rep->items.keyboard.key[1], rep->items.keyboard.key[2],

@@ -70,7 +70,9 @@ typedef struct NVMe_Host {
 #define NVMe_Reg_IntrMskSet	0x0C
 #define NVMe_Reg_IntrMskClr	0x10
 #define NVMe_Reg_Cfg		0x14
-#define NVMe_Reg_Status		0x18
+#define NVMe_Reg_Status		0x1C
+// subsystem reset, reserved if bit 36 of NVMe_Reg_Cap is clear
+#define NVMe_Reg_SubsysRes	0x20
 #define NVMe_Reg_AdmQueAttr	0x24
 #define NVMe_Reg_AdmSubmQue	0x28
 #define NVMe_Reg_AdmCmplQue 0x30
