@@ -42,7 +42,7 @@ typedef struct NVMe_QueMgr {
 	void *que;
 	union {
 		NVMe_Request *reqSrc;
-		void *submSrc;
+		struct NVMe_QueMgr *submSrc;
 	};
 	SpinLock lock;
 } __attribute__ ((packed)) NVMe_QueMgr;

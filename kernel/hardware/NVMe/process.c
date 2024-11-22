@@ -168,6 +168,7 @@ NVMe_Host *HW_NVMe_initDevice(PCIeConfig *pciCfg) {
 	// setup admin submission queue and completition queue
 	host->adminCmplQue = HW_NVMe_allocQue(Page_4KSize / sizeof(NVMe_CmplQueEntry), NVMe_QueMgr_attr_isAdmQue);
 	host->adminSubmQue = HW_NVMe_allocQue(Page_4KSize / sizeof(NVMe_SubmQueEntry), NVMe_QueMgr_attr_isSubmQue | NVMe_QueMgr_attr_isAdmQue);
+	host->adminCmplQue->submSrc = host->adminSubmQue;
 	
 	HW_NVMe_writeReg64(host, NVMe_Reg_AdmSubmQue, DMAS_virt2Phys(host->adminSubmQue->desc.addr));
 	HW_NVMe_writeReg64(host, NVMe_Reg_AdmCmplQue, DMAS_virt2Phys(host->adminCmplQue->desc.addr));
@@ -191,6 +192,11 @@ NVMe_Host *HW_NVMe_initDevice(PCIeConfig *pciCfg) {
 		else printk(RED, BLACK, "NVMe: %#018lx: failed to start, cfg=%#010x status=%#010x\n", host, cfg, status);
 	}
 	
+	// setup 7 IO submission queue and 7 completition queue
+	for (int i = 0; i < 7; i++) host->ioSubmQue[i] = HW_NVMe_allocQue(Page_4KSize / sizeof(NVMe_SubmQueEntry), NVMe_QueMgr_attr_isSubmQue);
+	for (int i = 0; i < 7; i++) host->ioCmplQue[i] = HW_NVMe_allocQue(Page_4KSize / sizeof(NVMe_CmplQueEntry), 0), host->ioCmplQue[i]->submSrc = host->ioSubmQue[i];
+
+	// set create IO completition queue command and create IO submission queue command
 	return host;
 }
 
