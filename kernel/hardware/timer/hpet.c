@@ -58,7 +58,7 @@ IntrHandlerDeclare(HW_Timer_HPET_handler) {
 	if (!Task_cfsStruct.flags) return 0;
 	Task_updateAllProcessorState();
 	return 0;
-	// printk(BLACK, WHITE, "H");
+	printk(BLACK, WHITE, "H");
 }
 
 // this interrupt is for timer requires
@@ -125,8 +125,8 @@ void HW_Timer_HPET_init() {
 		u32 a, b, c, d;
 		HW_CPU_cpuid(0x1, 0, &a, &b, &c, &d);
 		// I dont know why I need to use logical destination, but it can run on Intel Ultra 7 155H, so I keep it like this.
-		_intrDesc.destDesc.logical.destination = HW_APIC_getAPICID(); 
-		printk(WHITE, BLACK, "HPET: timer interrupt at processor with apicID=%x\n", HW_APIC_getAPICID());
+		_intrDesc.destDesc.logical.destination = SMP_getCPUInfoPkg(SMP_bspIdx())->x2apicID; 
+		printk(WHITE, BLACK, "HPET: timer interrupt at processor with apicID=%x\n", SMP_getCPUInfoPkg(SMP_bspIdx())->x2apicID);
 	}
 
 	// set the general configuration register
@@ -146,8 +146,8 @@ void HW_Timer_HPET_init() {
 
 	u64 cfg0 = _getTimerConfig(0);
 	printk(YELLOW, BLACK, "HPET: Timer 0: cap&cfg:%#018lx \t", cfg0);
-	if (cfg0 & _TimerCfgCap_64Cap) printk(WHITE, BLACK, "64-bit supply: Y \t");
-	else printk(WHITE, BLACK, "64-bit supply:N \t");
+	if (cfg0 & _TimerCfgCap_64Cap) printk(WHITE, BLACK, "64-bit supply: Y \n");
+	else printk(WHITE, BLACK, "64-bit supply:N \n");
 	_setTimerConfig(0, 0x40000004c);
 
 	_setTimerConfig(0, _TimerCfgCap_Enable | _TimerCfgCap_Period | _TimerCfgCap_SetVal | _TimerCfgCap_Irq(2));

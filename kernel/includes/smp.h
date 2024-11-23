@@ -110,6 +110,8 @@ void startSMP();
 
 u32 SMP_getCurCPUIndex();
 
+int SMP_bspIdx();
+
 SMP_CPUInfoPkg *SMP_getCPUInfoPkg(u32 idx);
 
 void SMP_maskIntr(int cpuId, u8 vecSt, u8 vecNum);

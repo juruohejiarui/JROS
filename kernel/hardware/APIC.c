@@ -265,7 +265,6 @@ void HW_APIC_init() {
     IO_mfence();
     APIC_flag = 1;
 
-    IO_sti();
 }
 
 int HW_APIC_finishedInit() { return APIC_flag; }

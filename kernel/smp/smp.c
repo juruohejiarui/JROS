@@ -11,8 +11,10 @@ u32 _cpuApicId[Hardware_CPUNumber];
 
 SpinLock _lock;
 int SMP_cpuNum;
-u32 trIdxCnt, SMP_bspIdx, _bspx2ApicId;
+u32 trIdxCnt, _bspIdx, _bspx2ApicId;
 Atomic SMP_initCpuNum;
+
+int SMP_bspIdx() { return _bspIdx; }
 
 static u32 _cvtId(u32 x2apicID) {
 	// SMP not enabled
@@ -119,7 +121,7 @@ static int _parseMADT() {
 		if (fl) break;
 	}
 	for (int i = 0; i < SMP_cpuNum; i++) if (SMP_cpuInfo[i].x2apicID == _bspx2ApicId) {
-		SMP_bspIdx = i;
+		_bspIdx = i;
 		break;
 	}
 
@@ -135,7 +137,6 @@ IntrHandlerDeclare(SMP_irq0xc8Handler) {
 }
 
 void SMP_init() {
-	IO_cli();
 	printk(RED, BLACK, "SMP_init()\n");
 	SpinLock_init(&_lock);
 	SMP_cpuNum = 0;
@@ -157,8 +158,7 @@ void SMP_init() {
 	// find the local processor list and register each of them.
 	int res = _parseMADT();
 	if (!res) { printk(RED, BLACK, "SMP: unable to get the processor map.\n"); return ; }
-	printk(WHITE, BLACK, "SMP: BSP Idx=%d\n", SMP_bspIdx);
-	IO_sti();
+	printk(WHITE, BLACK, "SMP: BSP Idx=%d\n", _bspIdx);
 }
 
 void SMP_initAPU() {
@@ -181,7 +181,7 @@ void SMP_initAPU() {
 	Intr_SoftIrq_Timer_mdelay(100);
 	printk(WHITE, BLACK, "SMP: init-IPI (value=%#018lx) sent to all APs ...\n", *(u64 *)&icr);
 	u64 st = HW_Timer_HPET_jiffies();
-	for (int i = 0; i < SMP_cpuNum; i++) if (i != SMP_bspIdx) {
+	for (int i = 0; i < SMP_cpuNum; i++) if (i != _bspIdx) {
 		u64 prev = SMP_initCpuNum.value;
 		icr.vector = 0x20;
 		icr.deliverMode = HW_APIC_DeliveryMode_Startup;

@@ -13,7 +13,6 @@ void HW_init() {
     HW_CPU_init();
     HW_PCIe_init();
     HW_APIC_init();
-    HW_Timer_init();
     HW_Keyboard_init();
 }
 

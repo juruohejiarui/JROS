@@ -35,6 +35,10 @@ void startKernel() {
     HW_init();
 
 	SMP_init();
+    
+    HW_Timer_init();
+
+    IO_sti();
 
 	Task_Syscall_init();
 	Task_initMgr();
