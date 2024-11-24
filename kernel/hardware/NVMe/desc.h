@@ -41,7 +41,7 @@ typedef struct NVMe_QueMgr {
 	#define NVMe_QueMgr_attr_isAdmQue		(1ul << 1)
 	void *que;
 	union {
-		NVMe_Request *reqSrc;
+		NVMe_Request **reqSrc;
 		struct NVMe_QueMgr *submSrc;
 	};
 	SpinLock lock;

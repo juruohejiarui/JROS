@@ -16,7 +16,7 @@ NVMe_QueMgr *HW_NVMe_allocQue(u64 queSize, u64 attr) {
 	SpinLock_init(&queMgr->lock);
 	queMgr->hdr = queMgr->til = 0;
 	if (queMgr->attr & NVMe_QueMgr_attr_isSubmQue) {
-		queMgr->reqSrc = kmalloc(queSize * sizeof(NVMe_Request), Slab_Flag_Clear, NULL);
+		queMgr->reqSrc = kmalloc(queSize * sizeof(NVMe_Request *), Slab_Flag_Clear, NULL);
 	} else queMgr->submSrc = NULL;
 }
 
@@ -26,19 +26,22 @@ void HW_NVMe_freeQue(NVMe_QueMgr *queMgr) {
 }
 
 // return the tail index of the inserted request, return -1 if failed to insert
-int HW_NVMe_insSubm(NVMe_QueMgr *queMgr, NVMe_Request *req) {
+int HW_NVMe_insSubmAndRing(NVMe_Host *host, NVMe_QueMgr *queMgr, NVMe_Request *req) {
 	req->attr = 0;
 	SpinLock_lock(&queMgr->lock);
-	if (queMgr->len == queMgr->desc.size) {
+	if (queMgr->reqSrc[queMgr->til] != NULL) {
 		SpinLock_unlock(&queMgr->lock);
 		return -1;
 	}
+	queMgr->reqSrc[queMgr->til] = req;
 	memcpy(&req->entry, ((NVMe_SubmQueEntry *)queMgr->que) + queMgr->til, sizeof(NVMe_SubmQueEntry));
 	queMgr->til++;
 	queMgr->len++;
+	int res = queMgr->til;
+	if (res == queMgr->desc.size) queMgr->til = 0;
+	HW_NVMe_ringSubmDb(host, queMgr);
 	SpinLock_unlock(&queMgr->lock);
-	if (queMgr->til == queMgr->desc.size) return queMgr->til = 0, queMgr->desc.size;
-	else return queMgr->til;
+	return res;
 }
 
 void HW_NVMe_mkSumEntry_IO(NVMe_SubmQueEntry *entry, u8 opcode, u32 nsid, void *data, u64 lba, u16 numBlks) {
@@ -48,6 +51,13 @@ void HW_NVMe_mkSumEntry_IO(NVMe_SubmQueEntry *entry, u8 opcode, u32 nsid, void *
 	entry->metaPtr = DMAS_virt2Phys(data);
 	*(u64 *)entry->cmdSpec = lba;
 	entry->cmdSpec[2] = numBlks - 1;
+}
+
+void HW_NVMe_mkSubmEntry_NewCmpl(NVMe_SubmQueEntry *entry, NVMe_QueMgr *queMgr, u8 intrId) {
+	entry->cmd = 
+	entry->metaPtr = DMAS_virt2Phys(queMgr->desc.addr);
+	entry->cmdSpec[0] = queMgr->iden | (queMgr->desc.size << 16);
+	entry->cmdSpec[1] = 0x3 | (intrId << 16);
 }
 
 // initialize the device and create a management task, return the device if successfully.
@@ -193,10 +203,22 @@ NVMe_Host *HW_NVMe_initDevice(PCIeConfig *pciCfg) {
 	}
 	
 	// setup 7 IO submission queue and 7 completition queue
-	for (int i = 0; i < 7; i++) host->ioSubmQue[i] = HW_NVMe_allocQue(Page_4KSize / sizeof(NVMe_SubmQueEntry), NVMe_QueMgr_attr_isSubmQue);
-	for (int i = 0; i < 7; i++) host->ioCmplQue[i] = HW_NVMe_allocQue(Page_4KSize / sizeof(NVMe_CmplQueEntry), 0), host->ioCmplQue[i]->submSrc = host->ioSubmQue[i];
+	for (int i = 0; i < 7; i++) {
+		host->ioSubmQue[i] = HW_NVMe_allocQue(Page_4KSize / sizeof(NVMe_SubmQueEntry), NVMe_QueMgr_attr_isSubmQue);
+		host->ioSubmQue[i]->iden = i + 1;
+	}
+	for (int i = 0; i < 7; i++) {
+		host->ioCmplQue[i] = HW_NVMe_allocQue(Page_4KSize / sizeof(NVMe_CmplQueEntry), 0);
+		host->ioCmplQue[i]->iden = i + 1;
+		host->ioCmplQue[i]->submSrc = host->ioSubmQue[i];
+	}
 
 	// set create IO completition queue command and create IO submission queue command
+	for (int i = 0; i < 7; i++) {
+		NVMe_Request req;
+		HW_NVMe_mkSubmEntry_NewCmpl(&req.entry, host->ioCmplQue[i], i + 1);
+		HW_NVMe_insSubmAndRing(host, host->adminSubmQue, &req);
+	}
 	return host;
 }
 

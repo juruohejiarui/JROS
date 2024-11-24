@@ -57,8 +57,8 @@ IntrHandlerDeclare(HW_Timer_HPET_handler) {
 	Atomic_inc(&HPET_jiffies);
 	if (!Task_cfsStruct.flags) return 0;
 	Task_updateAllProcessorState();
-	return 0;
 	printk(BLACK, WHITE, "H");
+	return 0;
 }
 
 // this interrupt is for timer requires
@@ -148,8 +148,6 @@ void HW_Timer_HPET_init() {
 	printk(YELLOW, BLACK, "HPET: Timer 0: cap&cfg:%#018lx \t", cfg0);
 	if (cfg0 & _TimerCfgCap_64Cap) printk(WHITE, BLACK, "64-bit supply: Y \n");
 	else printk(WHITE, BLACK, "64-bit supply:N \n");
-	_setTimerConfig(0, 0x40000004c);
-
 	_setTimerConfig(0, _TimerCfgCap_Enable | _TimerCfgCap_Period | _TimerCfgCap_SetVal | _TimerCfgCap_Irq(2));
 	// set it to 1 ms
 	_setTimerComparator(0, (u64)(1 * 1e12 / _minTick + 1));

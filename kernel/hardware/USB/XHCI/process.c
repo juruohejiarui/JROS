@@ -42,6 +42,7 @@ void HW_USB_XHCI_init(PCIeManager *pci) {
 		return ;
 	}
 	XHCI_Host *host = kmalloc(sizeof(XHCI_Host), Slab_Flag_Clear, NULL);
+	SpinLock_init(&host->addr0Lock);
 	List_init(&host->listEle);
 	printk(WHITE, BLACK, "capPtr:%x\n", pci->cfg->type0.capPtr);
 	for (PCIe_CapHdr *hdr = HW_PCIe_getNxtCapHdr(pci->cfg, NULL); hdr; hdr = HW_PCIe_getNxtCapHdr(pci->cfg, hdr)) {
@@ -136,7 +137,6 @@ void HW_USB_XHCI_init(PCIeManager *pci) {
 	// determine numbers of interrupt and numbers of event handle task
 	host->enabledIntrNum = min(4, HW_USB_XHCI_maxIntr(host));
 	host->eveHandleTaskNum = min(host->enabledIntrNum, 4);
-
 
 	// set up msix/msi first
 	if (host->msixCapDesc) {
@@ -457,6 +457,7 @@ void HW_USB_XHCI_devMgrTask_int(u64 signal, XHCI_Device *dev) {
 void HW_USB_XHCI_devMgrTask(XHCI_Device *dev, u64 rootPort) {
 	Task_kernelEntryHeader();
 	Task_setSignalHandler(Task_current, Task_Signal_Int, (Task_SignalHandler)HW_USB_XHCI_devMgrTask_int, (u64)dev);
+	SpinLock_lock(&dev->host->addr0Lock);
 	dev->mgrTask = Task_current;
 	int speed = (HW_USB_XHCI_readPortReg(dev->host, rootPort, XHCI_PortReg_sc) >> 10) & ((1 << 4) - 1);
 	printk(YELLOW, BLACK, "dev:%#018lx port:%d speed:%d\n", dev, rootPort, speed);
@@ -468,6 +469,7 @@ void HW_USB_XHCI_devMgrTask(XHCI_Device *dev, u64 rootPort) {
 		HW_USB_XHCI_Ring_insReq(dev->host->cmdRing, req0);
 		if (HW_USB_XHCI_Req_ringDbWait(dev->host, 0, 0, 0, req0) != XHCI_TRB_CmplCode_Succ) {
 			printk(RED, BLACK, "dev:%#018lx failed to allocate slot, code=%d\n", dev, HW_USB_XHCI_TRB_getCmplCode(&req0->res));
+			SpinLock_unlock(&dev->host->addr0Lock);
 			dev->mgrTask = NULL;
 			Task_setSignal(Task_current, Task_Signal_Int);
 			while (1) IO_hlt();
@@ -510,10 +512,12 @@ void HW_USB_XHCI_devMgrTask(XHCI_Device *dev, u64 rootPort) {
 		HW_USB_XHCI_Ring_insReq(dev->host->cmdRing, req0);
 		if (HW_USB_XHCI_Req_ringDbWait(dev->host, 0, 0, 0, req0) != XHCI_TRB_CmplCode_Succ) {
 			printk(RED, BLACK, "dev:%#018lx failed to address device, code=%d\n", dev, HW_USB_XHCI_TRB_getCmplCode(&req0->res));
+			SpinLock_unlock(&dev->host->addr0Lock);
 			dev->mgrTask = NULL;
 			Task_setSignal(Task_current, Task_Signal_Int);
 			while (1) IO_hlt();
 		}
+		SpinLock_unlock(&dev->host->addr0Lock);
 	}
 	// get the first 8 bytes of the device descriptor and modify the maxPacketSize0
 	XHCI_Request *req1 = HW_USB_XHCI_allocReq(3);
