@@ -19,6 +19,7 @@ typedef struct NVMe_SubmQueEntry {
 
 typedef struct NVMe_Request {
 	NVMe_SubmQueEntry entry;
+	NVMe_CmplQueEntry res;
 	u64 attr;
 	#define NVMe_Request_attr_inQue		(1ul << 0)
 	#define NVMe_Request_attr_Finished	(1ul << 1)
@@ -34,15 +35,18 @@ typedef struct NVMe_CmplQueEntry {
 } __attribute__ ((packed)) NVMe_CmplQueEntry;
 
 typedef struct NVMe_QueMgr {
-	NVMe_QueDesc desc;
-	u64 hdr, til, len;
+	u64 hdr, til, size;
 	u64 attr, iden;
 	#define NVMe_QueMgr_attr_isSubmQue		(1ul << 0)
 	#define NVMe_QueMgr_attr_isAdmQue		(1ul << 1)
-	void *que;
 	union {
+		void *que;
+		NVMe_SubmQueEntry *submQue;
+		NVMe_CmplQueEntry *cmplQue;
+	};
+	struct {
 		NVMe_Request **reqSrc;
-		struct NVMe_QueMgr *submSrc;
+		struct NVMe_QueMgr *tgrCmplQue;
 	};
 	SpinLock lock;
 } __attribute__ ((packed)) NVMe_QueMgr;
