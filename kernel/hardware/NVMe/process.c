@@ -5,6 +5,7 @@
 
 static List _devList;
 
+
 NVMe_QueMgr *HW_NVMe_allocQue(u64 queSize, u64 attr) {
 	NVMe_QueMgr *queMgr = kmalloc(sizeof(NVMe_QueMgr), Slab_Flag_Clear | Slab_Flag_Private, (void *)HW_NVMe_freeQue);
 	queMgr->attr = attr;
@@ -28,10 +29,18 @@ void HW_NVMe_freeQue(NVMe_QueMgr *queMgr) {
 int HW_NVME_tryInsSubm(NVMe_Host *host, NVMe_QueMgr *queMgr, NVMe_Request *req) {
 	req->attr = 0;
 	SpinLock_lock(&queMgr->lock);
-	if (queMgr->reqSrc[queMgr->til] != NULL) {
+	SpinLock_lock(&host->freeIdenLock);
+	if (queMgr->reqSrc[queMgr->til] != NULL || List_isEmpty(&host->freeIdenList)) {
 		SpinLock_unlock(&queMgr->lock);
 		return -1;
 	}
+	{
+		NVMe_IdenList *iden = container(host->freeIdenList.next, NVMe_IdenList, listEle);
+		req->iden = iden;
+		List_del(&iden->listEle);
+		SpinLock_unlock(&host->freeIdenLock);
+	}
+	
 	queMgr->reqSrc[queMgr->til] = req;
 	memcpy(&req->entry, (NVMe_SubmQueEntry *)queMgr->que + queMgr->til, sizeof(NVMe_SubmQueEntry));
 	queMgr->til++;
@@ -44,7 +53,7 @@ int HW_NVME_tryInsSubm(NVMe_Host *host, NVMe_QueMgr *queMgr, NVMe_Request *req) 
 }
 
 void HW_NVMe_mkSumEntry_IO(NVMe_SubmQueEntry *entry, u8 opcode, u32 nsid, void *data, u64 lba, u16 numBlks) {
-	memset(entry, 0, sizeof(entry));
+	memset(entry, 0, sizeof(NVMe_SubmQueEntry));
 	entry->cmd = opcode;
 	entry->nsid = nsid;
 	entry->metaPtr = DMAS_virt2Phys(data);
@@ -190,6 +199,12 @@ NVMe_Host *HW_NVMe_initDevice(PCIeConfig *pciCfg) {
 	// enable msi/msi-x
 	if (host->msixCapDesc) HW_PCIe_MSIX_enableAll(host->pci, host->msixCapDesc);
 	else HW_PCIe_MSI_enableAll(host->msiCapDesc);
+
+	// initialize iden
+	List_init(&host->freeIdenList);
+	SpinLock_init(&host->freeIdenLock);
+	NVMe_IdenList *iden = kmalloc(sizeof(NVMe_IdenList) * 65536, Slab_Flag_Clear, 0);
+	for (int i = 0; i < 65536; i++) List_init(&iden[i].listEle), List_insBefore(&iden[i].listEle, &host->freeIdenList);
 
 	// enable nvme
 	HW_NVMe_writeReg32(host, NVMe_Reg_Cfg, HW_NVMe_readReg32(host, NVMe_Reg_Cfg) | 1);

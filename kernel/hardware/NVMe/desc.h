@@ -17,14 +17,6 @@ typedef struct NVMe_SubmQueEntry {
 	u32 cmdSpec[6]; // command spcific
 } __attribute__ ((packed)) NVMe_SubmQueEntry;
 
-typedef struct NVMe_Request {
-	NVMe_SubmQueEntry entry;
-	NVMe_CmplQueEntry res;
-	u64 attr;
-	#define NVMe_Request_attr_inQue		(1ul << 0)
-	#define NVMe_Request_attr_Finished	(1ul << 1)
-} NVMe_Request;
-
 typedef struct NVMe_CmplQueEntry {
 	u32 cmdSpec;
 	u32 reserved;
@@ -33,6 +25,20 @@ typedef struct NVMe_CmplQueEntry {
 	u16 cmdId;
 	u16 status;
 } __attribute__ ((packed)) NVMe_CmplQueEntry;
+
+typedef struct NVMe_IdenList {
+	List listEle;
+	int iden;
+} NVMe_IdenList;
+
+typedef struct NVMe_Request {
+	NVMe_SubmQueEntry entry;
+	NVMe_CmplQueEntry res;
+	u64 attr;
+	NVMe_IdenList *iden;
+	#define NVMe_Request_attr_inQue		(1ul << 0)
+	#define NVMe_Request_attr_Finished	(1ul << 1)
+} NVMe_Request;
 
 typedef struct NVMe_QueMgr {
 	u64 hdr, til, size;
@@ -60,6 +66,9 @@ typedef struct NVMe_Host {
 	NVMe_QueMgr *ioSubmQue[64], *ioCmplQue[64];
 
 	u64 cap, capStride;
+
+	List freeIdenList;
+	SpinLock freeIdenLock;
 	
 	PCIe_MSIXCap *msixCapDesc;
 	PCIe_MSIX_Table *msixTbl;

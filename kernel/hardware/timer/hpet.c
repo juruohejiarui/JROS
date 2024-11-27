@@ -57,7 +57,6 @@ IntrHandlerDeclare(HW_Timer_HPET_handler) {
 	Atomic_inc(&HPET_jiffies);
 	if (!Task_cfsStruct.flags) return 0;
 	Task_updateAllProcessorState();
-	printk(BLACK, WHITE, "H");
 	return 0;
 }
 
