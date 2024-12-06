@@ -29,16 +29,9 @@ void HW_NVMe_freeQue(NVMe_QueMgr *queMgr) {
 int HW_NVME_tryInsSubm(NVMe_Host *host, NVMe_QueMgr *queMgr, NVMe_Request *req) {
 	req->attr = 0;
 	SpinLock_lock(&queMgr->lock);
-	SpinLock_lock(&host->freeIdenLock);
-	if (queMgr->reqSrc[queMgr->til] != NULL || List_isEmpty(&host->freeIdenList)) {
+	if (queMgr->reqSrc[queMgr->til] != NULL) {
 		SpinLock_unlock(&queMgr->lock);
 		return -1;
-	}
-	{
-		NVMe_IdenList *iden = container(host->freeIdenList.next, NVMe_IdenList, listEle);
-		req->iden = iden;
-		List_del(&iden->listEle);
-		SpinLock_unlock(&host->freeIdenLock);
 	}
 	
 	queMgr->reqSrc[queMgr->til] = req;
@@ -199,12 +192,6 @@ NVMe_Host *HW_NVMe_initDevice(PCIeConfig *pciCfg) {
 	// enable msi/msi-x
 	if (host->msixCapDesc) HW_PCIe_MSIX_enableAll(host->pci, host->msixCapDesc);
 	else HW_PCIe_MSI_enableAll(host->msiCapDesc);
-
-	// initialize iden
-	List_init(&host->freeIdenList);
-	SpinLock_init(&host->freeIdenLock);
-	NVMe_IdenList *iden = kmalloc(sizeof(NVMe_IdenList) * 65536, Slab_Flag_Clear, 0);
-	for (int i = 0; i < 65536; i++) List_init(&iden[i].listEle), List_insBefore(&iden[i].listEle, &host->freeIdenList);
 
 	// enable nvme
 	HW_NVMe_writeReg32(host, NVMe_Reg_Cfg, HW_NVMe_readReg32(host, NVMe_Reg_Cfg) | 1);

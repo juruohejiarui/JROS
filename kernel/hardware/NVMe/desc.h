@@ -66,9 +66,6 @@ typedef struct NVMe_Host {
 	NVMe_QueMgr *ioSubmQue[64], *ioCmplQue[64];
 
 	u64 cap, capStride;
-
-	List freeIdenList;
-	SpinLock freeIdenLock;
 	
 	PCIe_MSIXCap *msixCapDesc;
 	PCIe_MSIX_Table *msixTbl;
