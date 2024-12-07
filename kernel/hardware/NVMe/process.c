@@ -25,24 +25,27 @@ void HW_NVMe_freeQue(NVMe_QueMgr *queMgr) {
 	if (queMgr->que != NULL) kfree(queMgr->que, 0);
 }
 
-// return the tail index of the inserted request and ring the doorbell if inserted successfully, return -1 if failed to insert
-int HW_NVME_tryInsSubm(NVMe_Host *host, NVMe_QueMgr *queMgr, NVMe_Request *req) {
-	req->attr = 0;
-	SpinLock_lock(&queMgr->lock);
-	if (queMgr->reqSrc[queMgr->til] != NULL) {
+void HW_NVMe_insReq(NVMe_Host *host, NVMe_QueMgr *queMgr, NVMe_Request *req) {
+	while (1) {
+		req->attr = 0;
+		SpinLock_lock(&queMgr->lock);
+		if (!queMgr->reqSrc[queMgr->til]) break;
 		SpinLock_unlock(&queMgr->lock);
-		return -1;
+		Task_releaseProcessor();
+		continue;
 	}
-	
 	queMgr->reqSrc[queMgr->til] = req;
 	memcpy(&req->entry, (NVMe_SubmQueEntry *)queMgr->que + queMgr->til, sizeof(NVMe_SubmQueEntry));
 	queMgr->til++;
-	int res = queMgr->til;
-	if (res == queMgr->size) queMgr->til = 0;
 	HW_NVMe_ringSubmDb(host, queMgr);
+	if (queMgr->til == queMgr->size) queMgr->til = 0;
 	SpinLock_unlock(&queMgr->lock);
-	
-	return res;
+}
+
+int HW_NVMe_insReqWait(NVMe_Host *host, NVMe_QueMgr *queMgr, NVMe_Request *req) {
+	HW_NVMe_insReq(host, queMgr, req);
+	while (!(req->attr & NVMe_Request_attr_Finished)) Task_releaseProcessor();
+	return req->res.status;
 }
 
 void HW_NVMe_mkSumEntry_IO(NVMe_SubmQueEntry *entry, u8 opcode, u32 nsid, void *data, u64 lba, u16 numBlks) {
@@ -104,8 +107,11 @@ NVMe_Host *HW_NVMe_initDevice(PCIeConfig *pciCfg) {
 	{
 		u8 	mnPgSize = (host->cap >> 52) & 0xf,
 			mxPgSize = (host->cap >> 56) & 0xf;
-		printk(WHITE, BLACK, "NVMe: %#018lx: mnPgSize:%dKiB mxPgSize:%dKiB\n", host, 4u << mnPgSize, 4u << mxPgSize);
+		printk(WHITE, BLACK, "NVMe: %#018lx: mnPgSize:%dKiB mxPgSize:%dKiB mxQueSize:%d\n", host, 4u << mnPgSize, 4u << mxPgSize, host->cap & ((1u << 16) - 1));
 	}
+
+	u64 submQueSize = min(Page_4KSize / sizeof(NVMe_SubmQueEntry), host->cap & ((1u << 16) - 1)),
+		cmplQueSize = min(Page_4KSize / sizeof(NVMe_CmplQueEntry), host->cap & ((1u << 16) - 1));
 
 	for (PCIe_CapHdr *hdr = HW_PCIe_getNxtCapHdr(host->pci, NULL); hdr; hdr = HW_PCIe_getNxtCapHdr(host->pci, hdr)) {
 		switch (hdr->capId) {
@@ -178,8 +184,8 @@ NVMe_Host *HW_NVMe_initDevice(PCIeConfig *pciCfg) {
 	}
 
 	// setup admin submission queue and completition queue
-	host->adminCmplQue = HW_NVMe_allocQue(Page_4KSize / sizeof(NVMe_CmplQueEntry), NVMe_QueMgr_attr_isAdmQue);
-	host->adminSubmQue = HW_NVMe_allocQue(Page_4KSize / sizeof(NVMe_SubmQueEntry), NVMe_QueMgr_attr_isSubmQue | NVMe_QueMgr_attr_isAdmQue);
+	host->adminCmplQue = HW_NVMe_allocQue(cmplQueSize, NVMe_QueMgr_attr_isAdmQue);
+	host->adminSubmQue = HW_NVMe_allocQue(submQueSize, NVMe_QueMgr_attr_isSubmQue | NVMe_QueMgr_attr_isAdmQue);
 	printk(WHITE, BLACK, "host->adminSubmQue:%#018lx,%#018lx,%#018lx\n", host->adminSubmQue, host->adminSubmQue->reqSrc, host->adminSubmQue->que);
 	host->adminSubmQue->tgrCmplQue = host->adminCmplQue;
 	
@@ -187,7 +193,7 @@ NVMe_Host *HW_NVMe_initDevice(PCIeConfig *pciCfg) {
 	HW_NVMe_writeReg64(host, NVMe_Reg_AdmCmplQue, DMAS_virt2Phys(host->adminCmplQue->que));
 
 	// set admin queue attributes
-	HW_NVMe_writeReg32(host, NVMe_Reg_AdmQueAttr, (Page_4KSize / sizeof(NVMe_SubmQueEntry)) | ((Page_4KSize / sizeof(NVMe_CmplQueEntry)) << 16));
+	HW_NVMe_writeReg32(host, NVMe_Reg_AdmQueAttr, (submQueSize) | (cmplQueSize << 16));
 
 	// enable msi/msi-x
 	if (host->msixCapDesc) HW_PCIe_MSIX_enableAll(host->pci, host->msixCapDesc);
@@ -207,22 +213,22 @@ NVMe_Host *HW_NVMe_initDevice(PCIeConfig *pciCfg) {
 	
 	// setup 15 IO submission queue and 7 completition queue
 	for (int i = 0; i < 7; i++) {
-		host->ioCmplQue[i] = HW_NVMe_allocQue(Page_4KSize / sizeof(NVMe_CmplQueEntry), 0);
+		host->ioCmplQue[i] = HW_NVMe_allocQue(cmplQueSize, 0);
 		host->ioCmplQue[i]->iden = i + 1;
 	}
 	for (int i = 0; i < 15; i++) {
-		host->ioSubmQue[i] = HW_NVMe_allocQue(Page_4KSize / sizeof(NVMe_SubmQueEntry), NVMe_QueMgr_attr_isSubmQue);
+		host->ioSubmQue[i] = HW_NVMe_allocQue(submQueSize, NVMe_QueMgr_attr_isSubmQue);
 		host->ioSubmQue[i]->iden = i + 1;
 		if (i < 1) host->ioSubmQue[i]->tgrCmplQue = host->adminCmplQue;
 		else host->ioSubmQue[i]->tgrCmplQue = host->ioCmplQue[i >> 1];
 	}
-	
 
 	// set create IO completition queue command and create IO submission queue command
 	for (int i = 0; i < 7; i++) {
 		NVMe_Request req;
 		HW_NVMe_mkSubmEntry_NewCmpl(&req.entry, host->ioCmplQue[i], i + 1);
-		HW_NVME_tryInsSubm(host, host->adminSubmQue, &req);
+		int res = HW_NVMe_insReqWait(host, host->adminSubmQue, &req);
+		printk(WHITE, BLACK, "NVMe: %#018lx: create IO completion queue #%d: %#018lx,%#018lx\n", host, i, *(u64 *)&req.res, *(u64 *)((u64)&req.res + sizeof(u64)));
 	}
 	printk(WHITE, BLACK, "NVMe: %#018lx: cfg=%#010x,status=%#010x\n", host, HW_NVMe_readReg32(host, NVMe_Reg_Cfg), HW_NVMe_readReg32(host, NVMe_Reg_Status));
 	return host;
@@ -232,7 +238,20 @@ IntrHandlerDeclare(HW_NVMe_intrHandler) {
 	NVMe_Host *host = (NVMe_Host *)(arg & ~0xful); int intrId = arg & 0xful;
 	printk(RED, BLACK, "NVMe: %#018lx: interrupt %d\n", host, intrId);
 	NVMe_QueMgr *cmplQue = (intrId ? host->ioCmplQue[intrId - 1] : host->adminCmplQue);
-	for (int i = 0; i < 8; i++) printk(WHITE, BLACK, "[%d]:%#018lx,%#018lx\n", i, *(u64 *)&cmplQue->cmplQue[i], *(u64 *)((u64)&cmplQue->cmplQue[i] + sizeof(u64)));
+	while (1) {
+		NVMe_CmplQueEntry *cmplEntry = &cmplQue->cmplQue[cmplQue->hdr];
+		if (!cmplEntry->finishFlag) break;
+		printk(WHITE, BLACK, "#%d:%d : cmplRes=%#018lx,%#018lx\n", cmplEntry->submQueId, cmplEntry->submQueHdrPtr, *(u64 *)cmplEntry, *(u64 *)((u64)cmplEntry + sizeof(u64)));
+		NVMe_QueMgr *subQue = cmplEntry->submQueId == 0 ? host->adminSubmQue : host->ioSubmQue[cmplEntry->submQueId - 1];
+		NVMe_Request *req = subQue->reqSrc[cmplEntry->submQueHdrPtr - 1];
+		subQue->reqSrc[cmplEntry->submQueHdrPtr - 1] = NULL;
+		memcpy(cmplEntry, &req->res, sizeof(NVMe_CmplQueEntry));
+		cmplEntry->finishFlag = 0;
+		subQue->attr |= NVMe_Request_attr_Finished;
+		cmplQue->hdr++;
+		HW_NVMe_ringCmplDb(host, cmplQue);
+		if (cmplQue->hdr == cmplQue->size) cmplQue->hdr = 0;
+	}
 }
 
 void HW_NVMe_init() {

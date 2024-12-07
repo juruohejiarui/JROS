@@ -21,9 +21,10 @@ typedef struct NVMe_CmplQueEntry {
 	u32 cmdSpec;
 	u32 reserved;
 	u16 submQueHdrPtr;
-	u16 usbmQueId;
+	u16 submQueId;
 	u16 cmdId;
-	u16 status;
+	u8 finishFlag : 1;
+	u16 status : 15;
 } __attribute__ ((packed)) NVMe_CmplQueEntry;
 
 typedef struct NVMe_IdenList {
