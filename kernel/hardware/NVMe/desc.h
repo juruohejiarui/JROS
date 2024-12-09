@@ -42,8 +42,8 @@ typedef struct NVMe_Request {
 } NVMe_Request;
 
 typedef struct NVMe_QueMgr {
-	u64 hdr, til, size;
-	u64 attr, iden;
+	u64 attr;
+	u16 hdr, til, size, iden;
 	#define NVMe_QueMgr_attr_isSubmQue		(1ul << 0)
 	#define NVMe_QueMgr_attr_isAdmQue		(1ul << 1)
 	union {

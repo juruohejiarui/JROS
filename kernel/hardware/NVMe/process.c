@@ -57,6 +57,14 @@ void HW_NVMe_mkSumEntry_IO(NVMe_SubmQueEntry *entry, u8 opcode, u32 nsid, void *
 	entry->cmdSpec[2] = numBlks - 1;
 }
 
+void HW_NVMe_mkSubmEntry_NewSubm(NVMe_SubmQueEntry *entry, NVMe_QueMgr *queMgr, NVMe_QueMgr *cmplQueMgr, u8 priority) {
+	memset(entry, 0, sizeof(NVMe_SubmQueEntry));
+	entry->cmd = 0x1;
+	entry->metaPtr = DMAS_virt2Phys(queMgr->que);
+	entry->cmdSpec[0] = queMgr->iden | (queMgr->size << 16);
+	entry->cmdSpec[1] = 0x1u | (priority << 1) | ((u32)cmplQueMgr->iden << 16);
+}
+
 void HW_NVMe_mkSubmEntry_NewCmpl(NVMe_SubmQueEntry *entry, NVMe_QueMgr *queMgr, u8 intrId) {
 	memset(entry, 0, sizeof(NVMe_SubmQueEntry));
 	entry->cmd = 0x5;
@@ -212,42 +220,48 @@ NVMe_Host *HW_NVMe_initDevice(PCIeConfig *pciCfg) {
 	}
 	
 	// setup 15 IO submission queue and 7 completition queue
-	for (int i = 0; i < 7; i++) {
+	for (int i = 0; i < 8; i++) {
 		host->ioCmplQue[i] = HW_NVMe_allocQue(cmplQueSize, 0);
 		host->ioCmplQue[i]->iden = i + 1;
 	}
-	for (int i = 0; i < 15; i++) {
+	for (int i = 0; i < 16; i++) {
 		host->ioSubmQue[i] = HW_NVMe_allocQue(submQueSize, NVMe_QueMgr_attr_isSubmQue);
 		host->ioSubmQue[i]->iden = i + 1;
 		if (i < 1) host->ioSubmQue[i]->tgrCmplQue = host->adminCmplQue;
 		else host->ioSubmQue[i]->tgrCmplQue = host->ioCmplQue[i >> 1];
 	}
-
+	NVMe_Request req;
 	// set create IO completition queue command and create IO submission queue command
-	for (int i = 0; i < 7; i++) {
-		NVMe_Request req;
+	for (int i = 0; i < 8; i++) {
 		HW_NVMe_mkSubmEntry_NewCmpl(&req.entry, host->ioCmplQue[i], i + 1);
 		int res = HW_NVMe_insReqWait(host, host->adminSubmQue, &req);
-		printk(WHITE, BLACK, "NVMe: %#018lx: create IO completion queue #%d: %#018lx,%#018lx\n", host, i, *(u64 *)&req.res, *(u64 *)((u64)&req.res + sizeof(u64)));
+		// printk(WHITE, BLACK, "NVMe: %#018lx: create IO completion queue #%d: %#018lx,%#018lx\n", host, i, *(u64 *)&req.res, *(u64 *)((u64)&req.res + sizeof(u64)));
+	}
+	for (int i = 0; i < 16; i++) {
+		HW_NVMe_mkSubmEntry_NewSubm(&req.entry, host->ioSubmQue[i], host->ioCmplQue[i >> 1], (i & 1));
+		int res = HW_NVMe_insReqWait(host, host->adminSubmQue, &req);
+		// printk(WHITE, BLACK, "NVMe: %#018lx: create IO submission queue #%d: %#018lx,%#018lx\n", host, i, *(u64 *)&req.res, *(u64 *)((u64)&req.res + sizeof(u64)));
 	}
 	printk(WHITE, BLACK, "NVMe: %#018lx: cfg=%#010x,status=%#010x\n", host, HW_NVMe_readReg32(host, NVMe_Reg_Cfg), HW_NVMe_readReg32(host, NVMe_Reg_Status));
+
+	// get namespace list
 	return host;
 }
 
 IntrHandlerDeclare(HW_NVMe_intrHandler) {
 	NVMe_Host *host = (NVMe_Host *)(arg & ~0xful); int intrId = arg & 0xful;
-	printk(RED, BLACK, "NVMe: %#018lx: interrupt %d\n", host, intrId);
+	// printk(RED, BLACK, "NVMe: %#018lx: interrupt %d\n", host, intrId);
 	NVMe_QueMgr *cmplQue = (intrId ? host->ioCmplQue[intrId - 1] : host->adminCmplQue);
 	while (1) {
 		NVMe_CmplQueEntry *cmplEntry = &cmplQue->cmplQue[cmplQue->hdr];
+		// printk(WHITE, BLACK, "#%d:%d : cmplRes=%#018lx,%#018lx\n", cmplEntry->submQueId, cmplEntry->submQueHdrPtr, *(u64 *)cmplEntry, *(u64 *)((u64)cmplEntry + sizeof(u64)));
 		if (!cmplEntry->finishFlag) break;
-		printk(WHITE, BLACK, "#%d:%d : cmplRes=%#018lx,%#018lx\n", cmplEntry->submQueId, cmplEntry->submQueHdrPtr, *(u64 *)cmplEntry, *(u64 *)((u64)cmplEntry + sizeof(u64)));
 		NVMe_QueMgr *subQue = cmplEntry->submQueId == 0 ? host->adminSubmQue : host->ioSubmQue[cmplEntry->submQueId - 1];
 		NVMe_Request *req = subQue->reqSrc[cmplEntry->submQueHdrPtr - 1];
 		subQue->reqSrc[cmplEntry->submQueHdrPtr - 1] = NULL;
 		memcpy(cmplEntry, &req->res, sizeof(NVMe_CmplQueEntry));
 		cmplEntry->finishFlag = 0;
-		subQue->attr |= NVMe_Request_attr_Finished;
+		req->attr |= NVMe_Request_attr_Finished;
 		cmplQue->hdr++;
 		HW_NVMe_ringCmplDb(host, cmplQue);
 		if (cmplQue->hdr == cmplQue->size) cmplQue->hdr = 0;
