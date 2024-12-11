@@ -10,7 +10,7 @@ qemu-system-x86_64 \
 	-enable-kvm \
 	-monitor stdio \
 	-machine type=q35 \
-	-cpu qemu64,+avx,+xsave,+sse2,+sse \
+	-cpu host \
 	-device qemu-xhci \
 	-drive file=disk.img,if=none,id=nvmedisk \
 	-device nvme,serial=deadbeef,drive=nvmedisk \
