@@ -71,7 +71,7 @@ void HW_NVMe_mkSubmEntry_NewCmpl(NVMe_SubmQueEntry *entry, NVMe_QueMgr *queMgr, 
 void HW_NVMe_mkSubmEntry_Iden(NVMe_SubmQueEntry *entry, void *data, u8 type, u32 nspId) {
     memset(entry, 0, sizeof(NVMe_SubmQueEntry));
     entry->cmd = 0x6;
-    entry->metaPtr = DMAS_virt2Phys(data);
+    *(u64 *)&entry->dtPtr[0] = DMAS_virt2Phys(data);
     entry->cmdSpec[0] = type;
     entry->nsid = nspId;
 }

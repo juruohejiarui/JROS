@@ -6,6 +6,6 @@ usbipd.exe attach --wsl --hardware-id ${HAREWWAREID}
 if [ $? -ne 0 ];then
 	echo -e "${RED_COLOR}==usbipd attach failed!==${RESET}"
 else
-	. ./install-EFI.sh
+	./install-EFI.sh /dev/sdd1
 	usbipd.exe detach --hardware-id ${HAREWWAREID}  
 fi

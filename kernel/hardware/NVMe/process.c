@@ -151,7 +151,7 @@ NVMe_Host *HW_NVMe_initDevice(PCIeConfig *pciCfg) {
 		else printk(RED, BLACK, "NVMe: %#018lx: failed to start, cfg=%#010x status=%#010x\n", host, cfg, status);
 	}
 	
-	// setup 15 IO submission queue and 7 completition queue
+	// setup 8 IO submission queue and 4 completition queue
 	for (int i = 0; i < 4; i++) {
 		host->ioCmplQue[i] = HW_NVMe_allocQue(cmplQueSize, 0);
 		host->ioCmplQue[i]->iden = i + 1;
@@ -166,13 +166,13 @@ NVMe_Host *HW_NVMe_initDevice(PCIeConfig *pciCfg) {
 	
 	printk(WHITE, BLACK, "NVMe: %#018lx: cfg=%#010x,status=%#010x\n", host, HW_NVMe_readReg32(host, NVMe_Reg_Cfg), HW_NVMe_readReg32(host, NVMe_Reg_Status));
 
-	// get namespace list
+	// get namespace list and namespace attribute
 	{
-		int *nspInfo = kmalloc(Page_4KSize, Slab_Flag_Clear, NULL);
-		HW_NVMe_mkSubmEntry_Iden(&req.entry, nspInfo, 0x1, 0);
+		int *nspInfo = kmalloc(Page_4KSize, Slab_Flag_Private | Slab_Flag_Clear, NULL);
+		HW_NVMe_mkSubmEntry_Iden(&req.entry, nspInfo, 0x02, 0);
 		u16 res = HW_NVMe_insReqWait(host, host->adminSubmQue, &req);
 		printk(res ? RED : WHITE, BLACK, "NVMe: %#018lx: get namespace info, res=%#010x\n", host, res);
-		for (int i = 0; i < 10; i++) printk(WHITE, BLACK, "\tNsp#%d: Id=%d\n", i, nspInfo[i]);
+		if (!res) { for (int i = 0; i < 20; i++) printk(WHITE, BLACK, "%#018lx%c", *((u64 *)nspInfo + i), i % 4 == 3 ? '\n' : ' '); }
 	}
 	// set create IO completition queue command and create IO submission queue command
 	for (int i = 0; i < 4; i++) {
