@@ -1,5 +1,5 @@
 #!/bin/bash
-LOOP_ID=1
+LOOP_ID=13
 DISK_PATH=disk.img
 
 # load the first 300M partition

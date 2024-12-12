@@ -58,6 +58,11 @@ typedef struct NVMe_QueMgr {
 	SpinLock lock;
 } __attribute__ ((packed)) NVMe_QueMgr;
 
+typedef struct NVMe_Namespace {
+	NVMe_QueMgr *ioSubmQue[4];
+	NVMe_QueMgr *ioCmplQue;
+} NVMe_Namespace;
+
 typedef struct NVMe_Host {
 	List listEle;
 	PCIeConfig *pci;
@@ -72,7 +77,7 @@ typedef struct NVMe_Host {
 	PCIe_MSIX_Table *msixTbl;
 	PCIe_MSICap *msiCapDesc;
 	PCIe_MSI_Descriptor *msiDesc;
-	int enabledIntrNum;
+	int enabledIntrNum, nspNum;
 	
 } NVMe_Host;
 

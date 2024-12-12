@@ -173,6 +173,10 @@ NVMe_Host *HW_NVMe_initDevice(PCIeConfig *pciCfg) {
 		u16 res = HW_NVMe_insReqWait(host, host->adminSubmQue, &req);
 		printk(res ? RED : WHITE, BLACK, "NVMe: %#018lx: get namespace info, res=%#010x\n", host, res);
 		if (!res) { for (int i = 0; i < 20; i++) printk(WHITE, BLACK, "%#018lx%c", *((u64 *)nspInfo + i), i % 4 == 3 ? '\n' : ' '); }
+		while (nspInfo[host->nspNum]) host->nspNum++;
+		for (int i = 0; i < host->nspNum; i++) {
+			
+		}
 	}
 	// set create IO completition queue command and create IO submission queue command
 	for (int i = 0; i < 4; i++) {
