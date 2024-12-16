@@ -27,16 +27,10 @@ typedef struct NVMe_CmplQueEntry {
 	u16 status : 15;
 } __attribute__ ((packed)) NVMe_CmplQueEntry;
 
-typedef struct NVMe_IdenList {
-	List listEle;
-	int iden;
-} NVMe_IdenList;
-
 typedef struct NVMe_Request {
 	NVMe_SubmQueEntry entry;
 	NVMe_CmplQueEntry res;
 	u64 attr;
-	NVMe_IdenList *iden;
 	#define NVMe_Request_attr_inQue		(1ul << 0)
 	#define NVMe_Request_attr_Finished	(1ul << 1)
 } NVMe_Request;
@@ -58,10 +52,27 @@ typedef struct NVMe_QueMgr {
 	SpinLock lock;
 } __attribute__ ((packed)) NVMe_QueMgr;
 
-typedef struct NVMe_Namespace {
-	NVMe_QueMgr *ioSubmQue[4];
+#define NVMe_SubmEntry_Iden_Type_Nsp			0x0
+#define NVMe_SubmEntry_Iden_Type_Ctrl			0x1
+#define NVMe_SubmEntry_Iden_Type_ActNspList		0x2
+#define NVMe_SubmEntry_Iden_Type_AllocNspList 	0x10
+
+typedef struct NVMe_NspDesc {
+	u64 size;
+	u64 cap; // capacity
+	u8 reserved1[10];
+	u8 formatLbaSz; // formatted LBA Size
+	u8 reserved2[2];
+	u8 dps; // end-to-end data protection type setttings
+	u8 nmic; // namespace multi-path I/O and namespace sharing capabilities
+} __attribute__ ((packed)) NVMe_NspDesc;
+
+typedef struct NVMe_Nsp {
+	NVMe_QueMgr *ioSubmQue[2];
 	NVMe_QueMgr *ioCmplQue;
-} NVMe_Namespace;
+	u32 id;
+	u64 sz, cap;
+} NVMe_Nsp;
 
 typedef struct NVMe_Host {
 	List listEle;
@@ -78,7 +89,8 @@ typedef struct NVMe_Host {
 	PCIe_MSICap *msiCapDesc;
 	PCIe_MSI_Descriptor *msiDesc;
 	int enabledIntrNum, nspNum;
-	
+	NVMe_Nsp *nsp;
+	DiskDevice device;
 } NVMe_Host;
 
 #define NVMe_Reg_Cap		0x00

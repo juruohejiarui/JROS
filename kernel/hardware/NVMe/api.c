@@ -2,7 +2,7 @@
 #include "../../includes/task.h"
 
 NVMe_QueMgr *HW_NVMe_allocQue(u64 queSize, u64 attr) {
-	NVMe_QueMgr *queMgr = kmalloc(sizeof(NVMe_QueMgr), Slab_Flag_Clear | Slab_Flag_Private, (void *)HW_NVMe_freeQue);
+	NVMe_QueMgr *queMgr = kmalloc(sizeof(NVMe_QueMgr), Slab_Flag_Clear, NULL);
 	queMgr->attr = attr;
 	register u64 entrySize = (queMgr->attr & NVMe_QueMgr_attr_isSubmQue ? sizeof(NVMe_SubmQueEntry) : sizeof(NVMe_CmplQueEntry));
 	queMgr->que = kmalloc(queSize * entrySize, Slab_Flag_Clear, NULL);
@@ -18,6 +18,7 @@ NVMe_QueMgr *HW_NVMe_allocQue(u64 queSize, u64 attr) {
 void HW_NVMe_freeQue(NVMe_QueMgr *queMgr) {
 	if (queMgr->attr & NVMe_QueMgr_attr_isSubmQue) kfree(queMgr->reqSrc, 0);
 	if (queMgr->que != NULL) kfree(queMgr->que, 0);
+	kfree(queMgr, 0);
 }
 
 void HW_NVMe_insReq(NVMe_Host *host, NVMe_QueMgr *queMgr, NVMe_Request *req) {
@@ -47,8 +48,8 @@ void HW_NVMe_mkSumEntry_IO(NVMe_SubmQueEntry *entry, u8 opcode, u32 nsid, void *
 	memset(entry, 0, sizeof(NVMe_SubmQueEntry));
 	entry->cmd = opcode;
 	entry->nsid = nsid;
-	entry->metaPtr = DMAS_virt2Phys(data);
-	*(u64 *)entry->cmdSpec = lba;
+	*(u64 *)&entry->dtPtr[0] = DMAS_virt2Phys(data);
+	*(u64 *)&entry->cmdSpec[0] = lba;
 	entry->cmdSpec[2] = numBlks - 1;
 }
 
