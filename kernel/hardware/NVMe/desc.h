@@ -2,6 +2,7 @@
 #define __HARDWARE_NVME_DESC_H__
 
 #include "../PCIe.h"
+#include "../diskdevice.h"
 
 typedef struct NVMe_QueDesc {
 	u64 addr;

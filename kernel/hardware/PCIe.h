@@ -4,7 +4,6 @@
 #include "../includes/memory.h"
 #include "../includes/interrupt.h"
 #include "UEFI.h"
-#include "device.h"
 
 typedef struct {
     u16 vendorID, devID;

@@ -56,7 +56,7 @@ void HW_NVMe_mkSumEntry_IO(NVMe_SubmQueEntry *entry, u8 opcode, u32 nsid, void *
 void HW_NVMe_mkSubmEntry_NewSubm(NVMe_SubmQueEntry *entry, NVMe_QueMgr *queMgr, NVMe_QueMgr *cmplQueMgr, u8 priority) {
 	memset(entry, 0, sizeof(NVMe_SubmQueEntry));
 	entry->cmd = 0x1;
-	entry->metaPtr = DMAS_virt2Phys(queMgr->que);
+	*(u64 *)&entry->dtPtr[0] = DMAS_virt2Phys(queMgr->cmplQue);
 	entry->cmdSpec[0] = queMgr->iden | ((queMgr->size - 1) << 16);
 	entry->cmdSpec[1] = 0x1u | (priority << 1) | ((u32)cmplQueMgr->iden << 16);
 }
@@ -64,7 +64,7 @@ void HW_NVMe_mkSubmEntry_NewSubm(NVMe_SubmQueEntry *entry, NVMe_QueMgr *queMgr, 
 void HW_NVMe_mkSubmEntry_NewCmpl(NVMe_SubmQueEntry *entry, NVMe_QueMgr *queMgr, u8 intrId) {
 	memset(entry, 0, sizeof(NVMe_SubmQueEntry));
 	entry->cmd = 0x5;
-	entry->metaPtr = DMAS_virt2Phys(queMgr->que);
+	*(u64 *)&entry->dtPtr[0] = DMAS_virt2Phys(queMgr->cmplQue);
 	entry->cmdSpec[0] = queMgr->iden | ((queMgr->size - 1) << 16);
 	entry->cmdSpec[1] = 0x3 | (intrId << 16);
 }

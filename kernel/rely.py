@@ -35,7 +35,9 @@ def readFileRelies(eleId : int) :
             nxtQuote = line.find('\"', i)
             if nxtQuote != -1 :
                 includePath = os.path.abspath(os.path.join(src[eleId][1], line[i : nxtQuote]))
-                includePath = os.path.join("./", os.path.relpath(includePath, './'))       
+                includePath = os.path.join("./", os.path.relpath(includePath, './')) 
+                if includePath[2 : ] not in eleDict :
+                    raise KeyError(f"No include path : {includePath[2 : ]}") 
                 rely[eleId].append(eleDict[includePath[2 : ]])
 
 visSet : set = set()

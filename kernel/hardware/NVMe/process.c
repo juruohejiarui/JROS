@@ -220,10 +220,12 @@ NVMe_Host *HW_NVMe_initDevice(PCIeConfig *pciCfg) {
 		}
 		kfree(desc, 0);
 	}
-	u64 *data = kmalloc(Page_4KSize, Slab_Flag_Clear, NULL);
-	HW_NVMe_mkSumEntry_IO(&req.entry, 0x02, host->nsp[0].id, data, 0, 10);
+	u64 *data = kmalloc(Page_4KSize, 0, NULL);
+	for (int i = 0; i < Page_4KSize / sizeof(u64); i++) data[i] = i;
+	HW_NVMe_mkSumEntry_IO(&req.entry, 0x02, host->nsp[0].id, data, 0x1, 1);
 	int res = HW_NVMe_insReqWait(host, host->nsp[0].ioSubmQue[0], &req);
-	for (int i = 0; i < 16; i++) printk(WHITE, BLACK, "%016lx ", data[i]);
+	printk(WHITE, BLACK, "res=%x\n", res);
+	for (int i = 0; i < 32; i++) printk(WHITE, BLACK, "%016lx%c", data[i], (i % 8 == 7 ? '\n' : ' '));
 	printk(WHITE, BLACK, "\n");
 	return host;
 
