@@ -7,6 +7,7 @@
 #include "../hardware/timer.h"
 #include "../hardware/keyboard.h"
 #include "../hardware/USB.h"
+#include "../hardware/diskdevice.h"
 
 void HW_init();
 void HW_initAdvance();

@@ -4,5 +4,6 @@
 #include "../fs/api.h"
 #include "../fs/ext4.h"
 #include "../fs/fat32.h"
+#include "../fs/gpt.h"
 
 #endif

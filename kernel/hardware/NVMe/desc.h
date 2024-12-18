@@ -68,11 +68,16 @@ typedef struct NVMe_NspDesc {
 	u8 nmic; // namespace multi-path I/O and namespace sharing capabilities
 } __attribute__ ((packed)) NVMe_NspDesc;
 
+struct NVMe_Host;
+
 typedef struct NVMe_Nsp {
 	NVMe_QueMgr *ioSubmQue[2];
 	NVMe_QueMgr *ioCmplQue;
 	u32 id;
 	u64 sz, cap;
+
+	DiskDevice device;
+	struct NVMe_Host *host;
 } NVMe_Nsp;
 
 typedef struct NVMe_Host {
@@ -84,6 +89,7 @@ typedef struct NVMe_Host {
 	NVMe_QueMgr *ioSubmQue[64], *ioCmplQue[64];
 
 	u64 cap, capStride;
+	u8 pgSize;
 	
 	PCIe_MSIXCap *msixCapDesc;
 	PCIe_MSIX_Table *msixTbl;
@@ -91,7 +97,7 @@ typedef struct NVMe_Host {
 	PCIe_MSI_Descriptor *msiDesc;
 	int enabledIntrNum, nspNum;
 	NVMe_Nsp *nsp;
-	DiskDevice device;
+
 } NVMe_Host;
 
 #define NVMe_Reg_Cap		0x00

@@ -2,8 +2,43 @@
 #include "../../includes/log.h"
 #include "../../includes/task.h"
 #include "../../includes/smp.h"
+#include "../../includes/fs.h"
 
 static List _devList;
+
+int HW_NVMe_read(DiskDevice *device, void *buf, u64 pos, u64 size) {
+	NVMe_Nsp *nsp = container(device, NVMe_Nsp, device);
+	NVMe_Host *host = nsp->host;
+	// check align, must be aligned to 512 (0x200)
+	if ((pos & 0x1ff) || (size & 0x1ff)) return DiskDevice_Task_State_Fail | DiskDevice_Task_State_InvalidArg;
+	if (pos + size > (nsp->sz << 9)) return DiskDevice_Task_State_Fail | DiskDevice_Task_State_OutOfRange;
+
+	NVMe_Request req;
+	HW_NVMe_mkSubmEntry_IO(&req.entry, 0x2, nsp->id, buf, pos >> 9, size >> 9);
+	int res = HW_NVMe_insReqWait(host, nsp->ioSubmQue[size < Page_4KSize], &req);
+	if (res) {
+		printk(RED, BLACK, "NVMe: %#018lx: Nsp #%d: failed to read data, res=%#010x\n", host, nsp, res);
+		return DiskDevice_Task_State_Fail | DiskDevice_Task_State_Unknown;
+	}
+	return DiskDevice_Task_State_Succ;
+}
+
+int HW_NVMe_write(DiskDevice *device, void *buf, u64 pos, u64 size) {
+	NVMe_Nsp *nsp = container(device, NVMe_Nsp, device);
+	NVMe_Host *host = nsp->host;
+	// check align, must be aligned to 512 (0x200)
+	if ((pos & 0x1ff) || (size & 0x1ff)) return DiskDevice_Task_State_Fail | DiskDevice_Task_State_InvalidArg;
+	if (pos + size > (nsp->sz << 9)) return DiskDevice_Task_State_Fail | DiskDevice_Task_State_OutOfRange;
+
+	NVMe_Request req;
+	HW_NVMe_mkSubmEntry_IO(&req.entry, 0x1, nsp->id, buf, pos >> 9, size >> 9);
+	int res = HW_NVMe_insReqWait(host, nsp->ioSubmQue[size < Page_4KSize], &req);
+	if (res) {
+		printk(RED, BLACK, "NVMe: %#018lx: Nsp #%d: failed to read data, res=%#010x\n", host, nsp, res);
+		return DiskDevice_Task_State_Fail | DiskDevice_Task_State_Unknown;
+	}
+	return DiskDevice_Task_State_Succ;
+}
 
 // initialize the device and create a management task, return the device if successfully.
 NVMe_Host *HW_NVMe_initDevice(PCIeConfig *pciCfg) {
@@ -46,13 +81,14 @@ NVMe_Host *HW_NVMe_initDevice(PCIeConfig *pciCfg) {
 	}
 
 	{
-		u8 	mnPgSize = (host->cap >> 52) & 0xf,
-			mxPgSize = (host->cap >> 56) & 0xf;
+		u8 	mnPgSize = (host->cap >> 48) & 0xf,
+			mxPgSize = (host->cap >> 52) & 0xf;
 		printk(WHITE, BLACK, "NVMe: %#018lx: mnPgSize:%dKiB mxPgSize:%dKiB mxQueSize:%d\n", host, 4u << mnPgSize, 4u << mxPgSize, host->cap & ((1u << 16) - 1));
+		host->pgSize = mnPgSize;
 	}
 
-	u64 submQueSize = min(Page_4KSize / sizeof(NVMe_SubmQueEntry), (host->cap & ((1u << 16) - 1)) + 1),
-		cmplQueSize = min(Page_4KSize / sizeof(NVMe_CmplQueEntry), (host->cap & ((1u << 16) - 1)) + 1);
+	u64 submQueSize = min(HW_NVMe_pageSize(host) / sizeof(NVMe_SubmQueEntry), (host->cap & ((1u << 16) - 1)) + 1),
+		cmplQueSize = min(HW_NVMe_pageSize(host) / sizeof(NVMe_CmplQueEntry), (host->cap & ((1u << 16) - 1)) + 1);
 
 	for (PCIe_CapHdr *hdr = HW_PCIe_getNxtCapHdr(host->pci, NULL); hdr; hdr = HW_PCIe_getNxtCapHdr(host->pci, hdr)) {
 		switch (hdr->capId) {
@@ -120,7 +156,7 @@ NVMe_Host *HW_NVMe_initDevice(PCIeConfig *pciCfg) {
 	// arbitration mechanism selected	= 000
 	// memory page size					= 2^(12+0)
 	{
-		u32 cc = (6u << 16) | (4 << 20);
+		u32 cc = (6u << 16) | (4 << 20) | ((u32)host->pgSize << 7);
 		HW_NVMe_writeReg32(host, NVMe_Reg_Cfg, cc);
 	}
 
@@ -159,7 +195,7 @@ NVMe_Host *HW_NVMe_initDevice(PCIeConfig *pciCfg) {
 	{	
 		u16 res;
 		{
-			int *nspInfo = kmalloc(Page_4KSize, Slab_Flag_Private | Slab_Flag_Clear, NULL);
+			int *nspInfo = kmalloc(HW_NVMe_pageSize(host), Slab_Flag_Private | Slab_Flag_Clear, NULL);
 			HW_NVMe_mkSubmEntry_Iden(&req.entry, nspInfo, 0x02, 0);
 			res = HW_NVMe_insReqWait(host, host->adminSubmQue, &req);
 			if (res) {
@@ -182,20 +218,23 @@ NVMe_Host *HW_NVMe_initDevice(PCIeConfig *pciCfg) {
 				nsp->ioSubmQue[0]->iden = (i << 1) | 1;
 				nsp->ioSubmQue[1]->iden = (i << 1) + 2;
 				nsp->id = nspInfo[i];
+				nsp->host = host;
 			}
 			kfree(nspInfo, 0);
 		}
-		NVMe_NspDesc *desc = kmalloc(Page_4KSize, Slab_Flag_Clear, NULL);
+		NVMe_NspDesc *desc = kmalloc(HW_NVMe_pageSize(host), Slab_Flag_Clear, NULL);
 		for (int i = 0; i < host->nspNum; i++) {
 			NVMe_Nsp *nsp = &host->nsp[i];
 			HW_NVMe_mkSubmEntry_Iden(&req.entry, desc, NVMe_SubmEntry_Iden_Type_Nsp, nsp->id);
 			res = HW_NVMe_insReqWait(host, host->adminSubmQue, &req);
-			if (!res)
-				printk(WHITE, BLACK, "NVMe: %#018lx: Nsp #%d: NSZ:%#018lx NCAP:%#018lx FLBAS:%x DPS:%d NMIC:%d\n", host, i, desc->size, desc->cap, desc->formatLbaSz, desc->dps, desc->nmic);
-			else {
+				
+			if (res) {
 				printk(RED, BLACK, "NVMe: %#018lx: failed to get information of Nsp#%d,res=%#010x\n", i, res);
 				goto InitFail;
 			}
+			printk(WHITE, BLACK, "NVMe: %#018lx: Nsp #%d: NSZ:%#018lx NCAP:%#018lx FLBAS:%x DPS:%d NMIC:%d\n", host, i, desc->size, desc->cap, desc->formatLbaSz, desc->dps, desc->nmic);
+			nsp->sz = desc->size;
+			nsp->cap = desc->cap;
 
 			// make create completion queue command, submission queue command
 			HW_NVMe_mkSubmEntry_NewCmpl(&req.entry, nsp->ioCmplQue, i + 1);
@@ -217,16 +256,17 @@ NVMe_Host *HW_NVMe_initDevice(PCIeConfig *pciCfg) {
 				printk(RED, BLACK, "NVMe: %#018lx: failed to create IO submission queue #%d:1, res=%#010x\n", host, i, res);
 				goto InitFail;
 			}
+
+			// register disk device
+			List_init(&nsp->device.listEle);
+			nsp->device.read = HW_NVMe_read;
+			nsp->device.write = HW_NVMe_write;
+
+			HW_DiskDevice_Register(&nsp->device);
 		}
 		kfree(desc, 0);
 	}
-	u64 *data = kmalloc(Page_4KSize, 0, NULL);
-	for (int i = 0; i < Page_4KSize / sizeof(u64); i++) data[i] = i;
-	HW_NVMe_mkSumEntry_IO(&req.entry, 0x02, host->nsp[0].id, data, 0x1, 1);
-	int res = HW_NVMe_insReqWait(host, host->nsp[0].ioSubmQue[0], &req);
-	printk(WHITE, BLACK, "res=%x\n", res);
-	for (int i = 0; i < 32; i++) printk(WHITE, BLACK, "%016lx%c", data[i], (i % 8 == 7 ? '\n' : ' '));
-	printk(WHITE, BLACK, "\n");
+	printk(WHITE, BLACK, "NVMe: %#018lx: finish create namespace structure(s).\n", host);
 	return host;
 
 	InitFail:
@@ -257,10 +297,10 @@ void HW_NVMe_init() {
 	List_init(&_devList);
 
 	List *pcieListHeader = HW_PCIe_getMgrList();
-    for (List *pcieListEle = pcieListHeader->next; pcieListEle != pcieListHeader; pcieListEle = pcieListEle->next) {
+	for (List *pcieListEle = pcieListHeader->next; pcieListEle != pcieListHeader; pcieListEle = pcieListEle->next) {
 		PCIeManager *mgrStruct = container(pcieListEle, PCIeManager, listEle);
-        if (mgrStruct->cfg->classCode != 0x01 || mgrStruct->cfg->subclass != 0x08)
-            continue;
+		if (mgrStruct->cfg->classCode != 0x01 || mgrStruct->cfg->subclass != 0x08)
+			continue;
 		NVMe_Host *host = HW_NVMe_initDevice(mgrStruct->cfg);
 		if (host != NULL) List_insBefore(&host->listEle, &_devList);
 	}

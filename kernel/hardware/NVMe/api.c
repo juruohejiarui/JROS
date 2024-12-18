@@ -44,7 +44,7 @@ int HW_NVMe_insReqWait(NVMe_Host *host, NVMe_QueMgr *queMgr, NVMe_Request *req) 
 	return req->res.status;
 }
 
-void HW_NVMe_mkSumEntry_IO(NVMe_SubmQueEntry *entry, u8 opcode, u32 nsid, void *data, u64 lba, u16 numBlks) {
+void HW_NVMe_mkSubmEntry_IO(NVMe_SubmQueEntry *entry, u8 opcode, u32 nsid, void *data, u64 lba, u16 numBlks) {
 	memset(entry, 0, sizeof(NVMe_SubmQueEntry));
 	entry->cmd = opcode;
 	entry->nsid = nsid;

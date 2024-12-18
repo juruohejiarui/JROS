@@ -64,8 +64,8 @@ void _backtrace(PtReg *regs) {
 	int i = 0;
 
 	printk(RED,BLACK,"====================== Task Struct Information =====================\n");
-	printk(RED,BLACK,"regs->rsp:%#018lx,current->thread->rsp:%#018lx,current:%#018lx\n",
-		regs->rsp, Task_current->thread->rsp, Task_current);
+	printk(RED,BLACK,"regs->rsp:%#018lx,current->thread->rsp:%#018lx,current:%#018lx,current->tss->rsp0:%#018lx\n",
+		regs->rsp, Task_current->thread->rsp, Task_current, Task_current->tss->rsp0);
 	printk(RED,BLACK,"====================== Kernel Stack Backtrace ======================\n");
 
 	for(i = 0;i < 20;i++)

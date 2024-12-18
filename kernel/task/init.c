@@ -5,6 +5,7 @@
 #include "../includes/memory.h"
 #include "../includes/log.h"
 #include "../includes/smp.h"
+#include "../includes/fs.h"
 
 extern void Intr_retFromIntr();
 
@@ -68,6 +69,10 @@ void task0(void *arg1, u64 arg2) {
 	TaskStruct *kbTask = Task_createTask(Task_keyboardEvent, NULL, 0, Task_Flag_Inner | Task_Flag_Kernel),
 				*recycTask = Task_createTask(Task_recycleThread, NULL, 0, Task_Flag_Kernel | Task_Flag_Inner);
 	HW_initAdvance();
+
+	for (List *listEle = HW_DiskDevice_devList.next; listEle != &HW_DiskDevice_devList; listEle = listEle->next) {
+		FS_GPT_scan(container(listEle, DiskDevice, listEle));
+	}
 	// for (int i = 0; i < 20; i++) Task_createTask(usrInit, NULL, i, Task_Flag_Inner);
 	while (1) IO_hlt();
 	Task_kernelThreadExit(0);

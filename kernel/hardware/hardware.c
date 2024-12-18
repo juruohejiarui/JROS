@@ -17,7 +17,9 @@ void HW_init() {
 }
 
 void HW_initAdvance() {
+    HW_DiskDevice_init();
 	HW_USB_init();
 	HW_NVMe_init();
     HW_Timer_HPET_initAdvance();
+    
 }
