@@ -40,6 +40,8 @@ void startKernel() {
 
     IO_sti();
 
+    FS_init();
+
 	Task_Syscall_init();
 	Task_initMgr();
 	SIMD_init();

@@ -244,7 +244,7 @@ inline void putchar(unsigned int fcol, unsigned int bcol, char ch) {
     int i;
     if (ch == '\n') {
         position.YPosition++, position.XPosition = 0;
-        if (position.YPosition >= position.YResolution / position.YCharSize) {
+        if (position.YPosition >= min(96, position.YResolution / position.YCharSize)) {
             _scroll();
 			position.YPosition--;
         }
