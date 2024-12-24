@@ -3,6 +3,8 @@
 
 #include "../includes/lib.h"
 
+#define DiskDevice_LbaSize 512
+
 #define DiskDevice_Task_State_Succ		0x0
 #define DiskDevice_Task_State_Fail		0x1
 #define DiskDevice_Task_State_Busy			(0 << 1)
