@@ -17,7 +17,7 @@ int HW_NVMe_read(DiskDevice *device, void *buf, u64 pos, u64 size) {
 	HW_NVMe_mkSubmEntry_IO(&req.entry, 0x2, nsp->id, buf, pos >> 9, size >> 9);
 	int res = HW_NVMe_insReqWait(host, nsp->ioSubmQue[size < Page_4KSize], &req);
 	if (res) {
-		printk(RED, BLACK, "NVMe: %#018lx: Nsp #%d: failed to read data, res=%#010x\n", host, nsp, res);
+		printk(RED, BLACK, "NVMe: %#018lx: Nsp #%d: failed to read data, res=%#010x\n", host, nsp->id, res);
 		return DiskDevice_Task_State_Fail | DiskDevice_Task_State_Unknown;
 	}
 	return DiskDevice_Task_State_Succ;
@@ -34,7 +34,7 @@ int HW_NVMe_write(DiskDevice *device, void *buf, u64 pos, u64 size) {
 	HW_NVMe_mkSubmEntry_IO(&req.entry, 0x1, nsp->id, buf, pos >> 9, size >> 9);
 	int res = HW_NVMe_insReqWait(host, nsp->ioSubmQue[size < Page_4KSize], &req);
 	if (res) {
-		printk(RED, BLACK, "NVMe: %#018lx: Nsp #%d: failed to read data, res=%#010x\n", host, nsp, res);
+		printk(RED, BLACK, "NVMe: %#018lx: Nsp #%d: failed to read data, res=%#010x\n", host, nsp->id, res);
 		return DiskDevice_Task_State_Fail | DiskDevice_Task_State_Unknown;
 	}
 	return DiskDevice_Task_State_Succ;
@@ -275,11 +275,11 @@ NVMe_Host *HW_NVMe_initDevice(PCIeConfig *pciCfg) {
 
 IntrHandlerDeclare(HW_NVMe_intrHandler) {
 	NVMe_Host *host = (NVMe_Host *)(arg & ~0xful); int intrId = arg & 0xful;
-	printk(RED, BLACK, "NVMe: %#018lx: interrupt %d\n", host, intrId);
+	// printk(RED, BLACK, "NVMe: %#018lx: interrupt %d\n", host, intrId);
 	NVMe_QueMgr *cmplQue = (intrId ? host->ioCmplQue[intrId - 1] : host->adminCmplQue);
 	while (1) {
 		NVMe_CmplQueEntry *cmplEntry = &cmplQue->cmplQue[cmplQue->hdr];
-		printk(WHITE, BLACK, "#%d:%d : cmplRes=%#018lx,%#018lx\n", cmplEntry->submQueId, cmplEntry->submQueHdrPtr, *(u64 *)cmplEntry, *(u64 *)((u64)cmplEntry + sizeof(u64)));
+		// printk(WHITE, BLACK, "#%d:%d : cmplRes=%#018lx,%#018lx\n", cmplEntry->submQueId, cmplEntry->submQueHdrPtr, *(u64 *)cmplEntry, *(u64 *)((u64)cmplEntry + sizeof(u64)));
 		if (!cmplEntry->finishFlag) break;
 		NVMe_QueMgr *subQue = cmplEntry->submQueId == 0 ? host->adminSubmQue : host->ioSubmQue[cmplEntry->submQueId - 1];
 		NVMe_Request *req = subQue->reqSrc[cmplEntry->submQueHdrPtr - 1];

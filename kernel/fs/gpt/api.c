@@ -23,8 +23,9 @@ int FS_GPT_scan(DiskDevice *device) {
 			"	parition entry size:	%d\n",
 			hdr->signature, hdr->revision, hdr->hdrSize, hdr->chksum, hdr->lba, hdr->lba, hdr->alterLba, hdr->alterLba, hdr->parNum, hdr->entrySz);
 			entryNum = hdr->parNum;
+		if (strncmp(hdr->signature, "EFI PART", 8)) { kfree(lba, 0); return 1; } 
 	}
-	for (int i = 0; i < 2; i++) {
+	for (int i = 0; i < entryNum / (512 / sizeof(FS_GPT_PartitionEntry)); i++) {
 		res = device->read(device, lba, 512 * (i + 2), 512);
 		if (res) { kfree(lba, 0); return res; }
 		FS_GPT_PartitionEntry *entry = lba;
@@ -33,14 +34,15 @@ int FS_GPT_scan(DiskDevice *device) {
 		
 		for (int j = 0; j < 512 / sizeof(FS_GPT_PartitionEntry); j++) {
 			for (int k = 0; k < 36; k++) name[k] = entry[j].name[k << 1 | 1];
+			if (!entry[j].stLba) continue;
 			printk(WHITE, BLACK, "st:%20lu=%#018lx ed:%20lu=%#018lx attr=%#018lx name=%s\n",
 				entry[j].stLba, entry[j].stLba, entry[j].edLba, entry[j].edLba, entry[j].attr, name);
-			if (!entry[j].stLba) continue;
 			FS_Partition *parition = kmalloc(sizeof(FS_Partition), Slab_Flag_Clear, NULL);
-			parition->st = entry[i].stLba, parition[i].ed = entry[i].edLba;
+			parition->st = entry[j].stLba, parition->ed = entry[j].edLba;
 			parition->device = device;
 			FS_registerPartition(parition);
 		}
 	}
 	kfree(lba, 0);
+	return 0;
 }

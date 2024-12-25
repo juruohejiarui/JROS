@@ -12,7 +12,7 @@ qemu-system-x86_64 \
 	-machine type=q35 \
 	-cpu host \
 	-device qemu-xhci \
-	-drive file=disk.img,if=none,id=nvmedisk \
+	-drive file=disk.img,format=raw,if=none,id=nvmedisk \
 	-device nvme,serial=deadbeef,drive=nvmedisk \
 	-net none \
 	-device usb-host,vendorid=${usbVendor},productid=${usbProduct},id=hostdev0 \

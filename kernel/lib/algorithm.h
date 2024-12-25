@@ -1,7 +1,9 @@
 #ifndef __LIB_ALGORITHM_H__
 #define __LIB_ALGORITHM_H__
-#define upAlignTo(x, bs) (((x) + (bs) - 1) / (bs) * (bs))
-#define downAlignTo(x, bs) (((x) / (bs) * (bs)))
+#define upAlignTo(x, bs) ({__typeof__(x) _x = (x); __typeof__(bs) _bs = bs; \
+    (((_x) + (_bs) - 1) / (_bs) * (_bs)); })
+#define downAlignTo(x, bs) ({__typeof__(x) _x = (x); __typeof__(bs) _bs = bs; \
+    ((_x) / (_bs) * (_bs)); })
 
 #define max(a, b) ({__typeof__(a) ta = (a); __typeof__(b) tb = (b); (ta) > (tb) ? (ta) : (tb); })
 #define min(a, b) ({__typeof__(a) ta = (a); __typeof__(b) tb = (b); (ta) > (tb) ? (tb) : (ta); })

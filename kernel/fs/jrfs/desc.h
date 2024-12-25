@@ -13,9 +13,9 @@ typedef struct FS_JRFS_BlkDesc {
 
 typedef struct FS_JRFS_PgDesc {
 	u64 attr;
-	#define FS_JRFS_PgHdr_grpSz(pgHdr) ((pgHdr)->attr & 0xful);
-	#define FS_JRFS_PgHdr_isSysPage	(1ul << 8)
-	#define FS_JRFS_PgHdr_
+	#define FS_JRFS_PgDesc_grpSz(pgHdr) ((pgHdr)->attr & 0xful);
+	#define FS_JRFS_PgDesc_IsSysPage	(1ul << 8)
+	#define FS_JRFS_PgDesc_Allocated	(1ul << 9)
 	u64 nxtPg;
 } __attribute__ ((packed)) FS_JRFS_PgDesc;
 
@@ -51,7 +51,6 @@ typedef struct FS_JRFS_DirEntry {
 typedef struct FS_JRFS_HugeDirNode {
 	struct {
 		u64 pgId[32];
-		u64 pg
 	} __attribute__ ((packed)) child;
 	u32 childSz;
 	u32 dep;
@@ -60,19 +59,23 @@ typedef struct FS_JRFS_HugeDirNode {
 typedef struct FS_JRFS_RootDesc {
 	u8 name[72];
 	u64 size; // size of filesytem (byte)
-	u64 frSize; // size of free space
 	u64 pgNum; // size of pages (byte)
-    u64 frPgNum; // number of free page
-	u32 blkSz; // size of blocks (page)
 	u64 blkNum; // number of blocks
-	u64 dtBmSz; // size of data bitmap (page)
+	u64 pgDescSz;
+	u64 pgDescOff; // offset of page descriptor array
+	u64 pgBmSz; // size of page bitmap array
+	u64 pgBmOff; // offset of page bitmap array
+    u64 frPgNum; // number of free page
+	u64 frSize; // size of free space
+	u32 blkSz; // size of blocks (bytes)
+	u32 rootEntryNum;
 	u64 feat; // feat set enabled for this file system
 	#define FS_JRFS_RootDesc_feat_HugeDir	(1ul << 0)
 	#define FS_JRFS_RootDesc_feat_HugeFile	(1ul << 1)
 	#define FS_JRFS_RootDesc_feat_HugePgGrp	(1ul << 2)
 	#define FS_JRFS_RootDesc_feat_RootBackup	(1ul << 3)
 	u64 descBackup;
-	u64 lstAllocBlk;
+	u64 firDtBlk, lstAllocBlk;
 } __attribute__ ((packed)) FS_JRFS_RootDesc;
 
 #endif
