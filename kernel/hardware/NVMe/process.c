@@ -87,8 +87,8 @@ NVMe_Host *HW_NVMe_initDevice(PCIeConfig *pciCfg) {
 		host->pgSize = mnPgSize;
 	}
 
-	u64 submQueSize = min(HW_NVMe_pageSize(host) / sizeof(NVMe_SubmQueEntry), (host->cap & ((1u << 16) - 1)) + 1),
-		cmplQueSize = min(HW_NVMe_pageSize(host) / sizeof(NVMe_CmplQueEntry), (host->cap & ((1u << 16) - 1)) + 1);
+	u64 submQueSize = min(HW_NVMe_pageSize(host) / sizeof(NVMe_SubmQueEntry), (host->cap & ((1u << 16) - 1))),
+		cmplQueSize = min(HW_NVMe_pageSize(host) / sizeof(NVMe_CmplQueEntry), (host->cap & ((1u << 16) - 1)));
 
 	for (PCIe_CapHdr *hdr = HW_PCIe_getNxtCapHdr(host->pci, NULL); hdr; hdr = HW_PCIe_getNxtCapHdr(host->pci, hdr)) {
 		switch (hdr->capId) {
@@ -275,12 +275,12 @@ NVMe_Host *HW_NVMe_initDevice(PCIeConfig *pciCfg) {
 
 IntrHandlerDeclare(HW_NVMe_intrHandler) {
 	NVMe_Host *host = (NVMe_Host *)(arg & ~0xful); int intrId = arg & 0xful;
-	// printk(RED, BLACK, "NVMe: %#018lx: interrupt %d\n", host, intrId);
+	printk(RED, BLACK, "NVMe: %#018lx: interrupt %d\n", host, intrId);
 	NVMe_QueMgr *cmplQue = (intrId ? host->ioCmplQue[intrId - 1] : host->adminCmplQue);
 	while (1) {
 		NVMe_CmplQueEntry *cmplEntry = &cmplQue->cmplQue[cmplQue->hdr];
-		// printk(WHITE, BLACK, "#%d:%d : cmplRes=%#018lx,%#018lx\n", cmplEntry->submQueId, cmplEntry->submQueHdrPtr, *(u64 *)cmplEntry, *(u64 *)((u64)cmplEntry + sizeof(u64)));
 		if (!cmplEntry->finishFlag) break;
+		printk(WHITE, BLACK, "#%d:%d : cmplRes=%#018lx,%#018lx\n", cmplEntry->submQueId, cmplEntry->submQueHdrPtr, *(u64 *)cmplEntry, *(u64 *)((u64)cmplEntry + sizeof(u64)));
 		NVMe_QueMgr *subQue = cmplEntry->submQueId == 0 ? host->adminSubmQue : host->ioSubmQue[cmplEntry->submQueId - 1];
 		NVMe_Request *req = subQue->reqSrc[cmplEntry->submQueHdrPtr - 1];
 		subQue->reqSrc[cmplEntry->submQueHdrPtr - 1] = NULL;
