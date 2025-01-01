@@ -74,7 +74,7 @@ void task0(void *arg1, u64 arg2) {
 		FS_GPT_scan(container(listEle, DiskDevice, listEle));
 	}
 	for (List *listEle = FS_partitionList.next; listEle != &FS_partitionList; listEle = listEle->next) {
-		FS_JRFS_mkfs(container(listEle, FS_Partition, listEle));
+		FS_JRFS_mkfs(container(listEle, FS_Part, listEle));
 	}
 	// for (int i = 0; i < 20; i++) Task_createTask(usrInit, NULL, i, Task_Flag_Inner);
 	while (1) IO_hlt();

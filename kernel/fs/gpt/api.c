@@ -37,10 +37,10 @@ int FS_GPT_scan(DiskDevice *device) {
 			if (!entry[j].stLba) continue;
 			printk(WHITE, BLACK, "st:%20lu=%#018lx ed:%20lu=%#018lx attr=%#018lx name=%s\n",
 				entry[j].stLba, entry[j].stLba, entry[j].edLba, entry[j].edLba, entry[j].attr, name);
-			FS_Partition *parition = kmalloc(sizeof(FS_Partition), Slab_Flag_Clear, NULL);
+			FS_Part *parition = kmalloc(sizeof(FS_Part), Slab_Flag_Clear, NULL);
 			parition->st = entry[j].stLba, parition->ed = entry[j].edLba;
 			parition->device = device;
-			FS_registerPartition(parition);
+			FS_registerPart(parition);
 		}
 	}
 	kfree(lba, 0);

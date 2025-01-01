@@ -4,7 +4,7 @@
 #include "desc.h"
 #include "../api.h"
 
-int FS_JRFS_mkfs(FS_Partition *partition);
-int FS_JRFS_loadfs(FS_Partition *FS_Partition);
+int FS_JRFS_mkfs(FS_Part *partition);
+int FS_JRFS_loadfs(FS_Part *FS_Partition);
 
 #endif

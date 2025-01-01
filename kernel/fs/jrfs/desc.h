@@ -78,4 +78,9 @@ typedef struct FS_JRFS_RootDesc {
 	u64 firDtBlk, lstAllocBlk;
 } __attribute__ ((packed)) FS_JRFS_RootDesc;
 
+typedef struct FS_JRFS_Mgr {
+	FS_JRFS_RootDesc *rootDesc;
+		
+};
+
 #endif

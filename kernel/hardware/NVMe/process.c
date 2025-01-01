@@ -10,12 +10,18 @@ int HW_NVMe_read(DiskDevice *device, void *buf, u64 pos, u64 size) {
 	NVMe_Nsp *nsp = container(device, NVMe_Nsp, device);
 	NVMe_Host *host = nsp->host;
 	// check align, must be aligned to 512 (0x200)
-	if ((pos & 0x1ff) || (size & 0x1ff)) return DiskDevice_Task_State_Fail | DiskDevice_Task_State_InvalidArg;
-	if (pos + size > (nsp->sz << 9)) return DiskDevice_Task_State_Fail | DiskDevice_Task_State_OutOfRange;
+	if ((pos & 0x1ff) || (size & 0x1ff)) { 
+		printk(RED, BLACK, "NVMe: %#018lx: Nsp #%d: write(): invalid align\n", host, nsp->id);
+		return DiskDevice_Task_State_Fail | DiskDevice_Task_State_InvalidArg;
+	}
+	if (pos + size > (nsp->sz << 9)) {
+		printk(RED, BLACK, "NVMe: %#018lx: Nsp #%d: write(): out of range\n", host, nsp->id);
+		return DiskDevice_Task_State_Fail | DiskDevice_Task_State_OutOfRange;
+	}
 
 	NVMe_Request req;
-	HW_NVMe_mkSubmEntry_IO(&req.entry, 0x2, nsp->id, buf, pos >> 9, size >> 9);
-	int res = HW_NVMe_insReqWait(host, nsp->ioSubmQue[size < Page_4KSize], &req);
+	HW_NVMe_mkSubmEntry_IO(&req.entry, 0x2, nsp->id, buf, pos >> DiskDevice_LbaShift, size >> DiskDevice_LbaShift);
+	int res = HW_NVMe_insReqWait(host, nsp->ioSubmQue[size <= Page_4KSize], &req);
 	if (res) {
 		printk(RED, BLACK, "NVMe: %#018lx: Nsp #%d: failed to read data, res=%#010x\n", host, nsp->id, res);
 		return DiskDevice_Task_State_Fail | DiskDevice_Task_State_Unknown;
@@ -27,12 +33,18 @@ int HW_NVMe_write(DiskDevice *device, void *buf, u64 pos, u64 size) {
 	NVMe_Nsp *nsp = container(device, NVMe_Nsp, device);
 	NVMe_Host *host = nsp->host;
 	// check align, must be aligned to 512 (0x200)
-	if ((pos & 0x1ff) || (size & 0x1ff)) return DiskDevice_Task_State_Fail | DiskDevice_Task_State_InvalidArg;
-	if (pos + size > (nsp->sz << 9)) return DiskDevice_Task_State_Fail | DiskDevice_Task_State_OutOfRange;
+	if ((pos & 0x1ff) || (size & 0x1ff)) { 
+		printk(RED, BLACK, "NVMe: %#018lx: Nsp #%d: write(): invalid align\n", host, nsp->id);
+		return DiskDevice_Task_State_Fail | DiskDevice_Task_State_InvalidArg;
+	}
+	if (pos + size > (nsp->sz << 9)) {
+		printk(RED, BLACK, "NVMe: %#018lx: Nsp #%d: write(): out of range\n", host, nsp->id);
+		return DiskDevice_Task_State_Fail | DiskDevice_Task_State_OutOfRange;
+	}
 
 	NVMe_Request req;
-	HW_NVMe_mkSubmEntry_IO(&req.entry, 0x1, nsp->id, buf, pos >> 9, size >> 9);
-	int res = HW_NVMe_insReqWait(host, nsp->ioSubmQue[size < Page_4KSize], &req);
+	HW_NVMe_mkSubmEntry_IO(&req.entry, 0x1, nsp->id, buf, pos >> DiskDevice_LbaShift, size >> DiskDevice_LbaShift);
+	int res = HW_NVMe_insReqWait(host, nsp->ioSubmQue[size <= Page_4KSize], &req);
 	if (res) {
 		printk(RED, BLACK, "NVMe: %#018lx: Nsp #%d: failed to read data, res=%#010x\n", host, nsp->id, res);
 		return DiskDevice_Task_State_Fail | DiskDevice_Task_State_Unknown;
@@ -275,22 +287,23 @@ NVMe_Host *HW_NVMe_initDevice(PCIeConfig *pciCfg) {
 
 IntrHandlerDeclare(HW_NVMe_intrHandler) {
 	NVMe_Host *host = (NVMe_Host *)(arg & ~0xful); int intrId = arg & 0xful;
-	printk(RED, BLACK, "NVMe: %#018lx: interrupt %d\n", host, intrId);
+	// printk(RED, BLACK, "NVMe: %#018lx: interrupt %d\n", host, intrId);
 	NVMe_QueMgr *cmplQue = (intrId ? host->ioCmplQue[intrId - 1] : host->adminCmplQue);
+	int found = 0;
 	while (1) {
 		NVMe_CmplQueEntry *cmplEntry = &cmplQue->cmplQue[cmplQue->hdr];
-		if (!cmplEntry->finishFlag) break;
-		printk(WHITE, BLACK, "#%d:%d : cmplRes=%#018lx,%#018lx\n", cmplEntry->submQueId, cmplEntry->submQueHdrPtr, *(u64 *)cmplEntry, *(u64 *)((u64)cmplEntry + sizeof(u64)));
+		if (cmplEntry->phaseBit != cmplQue->phaseBit) break;
+		found++;
+		// printk(WHITE, BLACK, "%d:%d->#%d:%d : cmplRes=%#018lx,%#018lx\n", intrId, cmplQue->hdr, cmplEntry->submQueId, cmplEntry->cmdId, *(u64 *)cmplEntry, *(u64 *)((u64)cmplEntry + sizeof(u64)));
 		NVMe_QueMgr *subQue = cmplEntry->submQueId == 0 ? host->adminSubmQue : host->ioSubmQue[cmplEntry->submQueId - 1];
-		NVMe_Request *req = subQue->reqSrc[cmplEntry->submQueHdrPtr - 1];
-		subQue->reqSrc[cmplEntry->submQueHdrPtr - 1] = NULL;
+		NVMe_Request *req = subQue->reqSrc[cmplEntry->cmdId];
+		subQue->reqSrc[cmplEntry->cmdId] = NULL;
 		memcpy(cmplEntry, &req->res, sizeof(NVMe_CmplQueEntry));
-		cmplEntry->finishFlag = 0;
 		req->attr |= NVMe_Request_attr_Finished;
 		cmplQue->hdr++;
-		HW_NVMe_ringCmplDb(host, cmplQue);
-		if (cmplQue->hdr == cmplQue->size) cmplQue->hdr = 0;
+		if (cmplQue->hdr == cmplQue->size) cmplQue->hdr = 0, cmplQue->phaseBit ^= 1;
 	}
+	if (found) HW_NVMe_ringCmplDb(host, cmplQue);
 }
 
 void HW_NVMe_init() {

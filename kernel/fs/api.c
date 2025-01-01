@@ -2,8 +2,11 @@
 
 List FS_partitionList;
 
-void FS_registerPartition(FS_Partition *partition) {
-	List_insBefore(&partition->listEle, &FS_partitionList);
+void FS_registerPart(FS_Part *part) {
+	List_insBefore(&part->listEle, &FS_partitionList);
+}
+void FS_unregisterPart(FS_Part *part) {
+	List_del(&part->listEle);
 }
 
 void FS_init() {

@@ -24,7 +24,7 @@ typedef struct NVMe_CmplQueEntry {
 	u16 submQueHdrPtr;
 	u16 submQueId;
 	u16 cmdId;
-	u8 finishFlag : 1;
+	u8 phaseBit : 1;
 	u16 status : 15;
 } __attribute__ ((packed)) NVMe_CmplQueEntry;
 
@@ -37,8 +37,12 @@ typedef struct NVMe_Request {
 } NVMe_Request;
 
 typedef struct NVMe_QueMgr {
-	u64 attr;
-	u16 hdr, til, size, iden;
+	u16 attr;
+	u16 size, iden;
+	union {
+		u16 til;
+		u16 hdr;
+	};
 	#define NVMe_QueMgr_attr_isSubmQue		(1ul << 0)
 	#define NVMe_QueMgr_attr_isAdmQue		(1ul << 1)
 	union {
@@ -46,10 +50,14 @@ typedef struct NVMe_QueMgr {
 		NVMe_SubmQueEntry *submQue;
 		NVMe_CmplQueEntry *cmplQue;
 	};
-	struct {
-		NVMe_Request **reqSrc;
-		struct NVMe_QueMgr *tgrCmplQue;
+	union {
+		struct {
+			NVMe_Request **reqSrc;
+			struct NVMe_QueMgr *tgrCmplQue;
+		};
+		u8 phaseBit;
 	};
+	
 	SpinLock lock;
 } __attribute__ ((packed)) NVMe_QueMgr;
 
