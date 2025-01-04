@@ -83,7 +83,7 @@ static __always_inline__ int _CFSTree_comparator(RBNode *a, RBNode *b) {
 }
 
 void CFSTree_rbTreeIns(RBTree *tree, RBNode *node, RBNode ***tgr, RBNode **par) {
-	RBNode **src = &tree->root; RBNode *lst;
+	RBNode **src = &tree->root, *lst;
 	while (*src) {
 		lst = *src;
 		if (_CFSTree_comparator(node, lst))

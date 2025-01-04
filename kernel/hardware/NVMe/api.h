@@ -32,7 +32,7 @@ void HW_NVMe_mkSubmEntry_NewSubm(NVMe_SubmQueEntry *entry, NVMe_QueMgr *queMgr, 
 void HW_NVMe_mkSubmEntry_NewCmpl(NVMe_SubmQueEntry *entry, NVMe_QueMgr *queMgr, u8 intrId);
 void HW_NVMe_mkSubmEntry_Iden(NVMe_SubmQueEntry *entry, void *data, u8 type, u32 nspId);
 
-NVMe_QueMgr *HW_NVMe_allocQue(u64 queSize, u64 attr);
+void HW_NVMe_initQue(NVMe_QueMgr *queMgr, u64 queSize, u16 iden, u64 attr);
 void HW_NVMe_freeQue(NVMe_QueMgr *queMgr);
 NVMe_Host *HW_NVMe_initDevice(PCIeConfig *pciCfg);
 

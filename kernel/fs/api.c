@@ -7,6 +7,7 @@ void FS_registerPart(FS_Part *part) {
 }
 void FS_unregisterPart(FS_Part *part) {
 	List_del(&part->listEle);
+	if (part->unregister) part->unregister(part);
 }
 
 void FS_init() {

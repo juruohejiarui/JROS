@@ -18,4 +18,6 @@ i32 log2Ceil(u64 n);
 
 // get the lowest bit of x
 #define lowbit(x) ({__typeof__(x) tx = (x); tx & -tx; })
+
+#define BKDRHash(x, ch) ((x) * 31 + (ch))
 #endif

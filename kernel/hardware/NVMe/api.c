@@ -2,24 +2,22 @@
 #include "../../includes/task.h"
 #include "../../includes/log.h"
 
-NVMe_QueMgr *HW_NVMe_allocQue(u64 queSize, u64 attr) {
-	NVMe_QueMgr *queMgr = kmalloc(sizeof(NVMe_QueMgr), Slab_Flag_Clear, NULL);
+void HW_NVMe_initQue(NVMe_QueMgr *queMgr, u64 queSize, u16 iden, u64 attr) {
 	queMgr->attr = attr;
 	register u64 entrySize = (queMgr->attr & NVMe_QueMgr_attr_isSubmQue ? sizeof(NVMe_SubmQueEntry) : sizeof(NVMe_CmplQueEntry));
 	queMgr->que = kmalloc(queSize * entrySize, Slab_Flag_Clear, NULL);
 	queMgr->size = queSize;
+	queMgr->iden = iden;
+	queMgr->til = 0;
 	SpinLock_init(&queMgr->lock);
-	queMgr->til = queMgr->iden = 0;
 	if (queMgr->attr & NVMe_QueMgr_attr_isSubmQue)
 		queMgr->reqSrc = kmalloc(queSize * sizeof(NVMe_Request *), Slab_Flag_Clear, NULL);
 	else queMgr->phaseBit = 1;
-	return queMgr;
 }
 
 void HW_NVMe_freeQue(NVMe_QueMgr *queMgr) {
 	if (queMgr->attr & NVMe_QueMgr_attr_isSubmQue) kfree(queMgr->reqSrc, 0);
 	if (queMgr->que != NULL) kfree(queMgr->que, 0);
-	kfree(queMgr, 0);
 }
 
 void HW_NVMe_insReq(NVMe_Host *host, NVMe_QueMgr *queMgr, NVMe_Request *req) {
@@ -59,7 +57,7 @@ void HW_NVMe_mkSubmEntry_IO(NVMe_SubmQueEntry *entry, u8 opcode, u32 nsid, void 
 void HW_NVMe_mkSubmEntry_NewSubm(NVMe_SubmQueEntry *entry, NVMe_QueMgr *queMgr, NVMe_QueMgr *cmplQueMgr, u8 priority) {
 	memset(entry, 0, sizeof(NVMe_SubmQueEntry));
 	entry->cmd = 0x1;
-	*(u64 *)&entry->dtPtr[0] = DMAS_virt2Phys(queMgr->cmplQue);
+	*(u64 *)&entry->dtPtr[0] = DMAS_virt2Phys(queMgr->submQue);
 	entry->cmdSpec[0] = queMgr->iden | ((queMgr->size - 1) << 16);
 	entry->cmdSpec[1] = 0x1u | (priority << 1) | ((u32)cmplQueMgr->iden << 16);
 }

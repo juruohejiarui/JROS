@@ -21,7 +21,7 @@ int HW_NVMe_read(DiskDevice *device, void *buf, u64 pos, u64 size) {
 
 	NVMe_Request req;
 	HW_NVMe_mkSubmEntry_IO(&req.entry, 0x2, nsp->id, buf, pos >> DiskDevice_LbaShift, size >> DiskDevice_LbaShift);
-	int res = HW_NVMe_insReqWait(host, nsp->ioSubmQue[size <= Page_4KSize], &req);
+	int res = HW_NVMe_insReqWait(host, &nsp->submQue[nsp->lstSubmId ^= 1], &req);
 	if (res) {
 		printk(RED, BLACK, "NVMe: %#018lx: Nsp #%d: failed to read data, res=%#010x\n", host, nsp->id, res);
 		return DiskDevice_Task_State_Fail | DiskDevice_Task_State_Unknown;
@@ -44,7 +44,7 @@ int HW_NVMe_write(DiskDevice *device, void *buf, u64 pos, u64 size) {
 
 	NVMe_Request req;
 	HW_NVMe_mkSubmEntry_IO(&req.entry, 0x1, nsp->id, buf, pos >> DiskDevice_LbaShift, size >> DiskDevice_LbaShift);
-	int res = HW_NVMe_insReqWait(host, nsp->ioSubmQue[size <= Page_4KSize], &req);
+	int res = HW_NVMe_insReqWait(host, &nsp->submQue[nsp->lstSubmId ^= 1], &req);
 	if (res) {
 		printk(RED, BLACK, "NVMe: %#018lx: Nsp #%d: failed to read data, res=%#010x\n", host, nsp->id, res);
 		return DiskDevice_Task_State_Fail | DiskDevice_Task_State_Unknown;
@@ -173,15 +173,16 @@ NVMe_Host *HW_NVMe_initDevice(PCIeConfig *pciCfg) {
 	}
 
 	// setup admin submission queue and completition queue
-	host->adminCmplQue = HW_NVMe_allocQue(cmplQueSize, NVMe_QueMgr_attr_isAdmQue);
-	host->adminSubmQue = HW_NVMe_allocQue(submQueSize, NVMe_QueMgr_attr_isSubmQue | NVMe_QueMgr_attr_isAdmQue);
-	host->adminSubmQue->tgrCmplQue = host->adminCmplQue;
+	HW_NVMe_initQue(&host->adminCmplQue, cmplQueSize, 0, NVMe_QueMgr_attr_isAdmQue);
+	HW_NVMe_initQue(&host->adminSubmQue, submQueSize, 0, NVMe_QueMgr_attr_isSubmQue | NVMe_QueMgr_attr_isAdmQue);
 	
-	HW_NVMe_writeReg64(host, NVMe_Reg_AdmSubmQue, DMAS_virt2Phys(host->adminSubmQue->que));
-	HW_NVMe_writeReg64(host, NVMe_Reg_AdmCmplQue, DMAS_virt2Phys(host->adminCmplQue->que));
+	HW_NVMe_writeReg64(host, NVMe_Reg_AdmSubmQue, DMAS_virt2Phys(host->adminSubmQue.que));
+	HW_NVMe_writeReg64(host, NVMe_Reg_AdmCmplQue, DMAS_virt2Phys(host->adminCmplQue.que));
+	host->cmplQue[0] = &host->adminCmplQue;
+	host->submQue[0] = &host->adminSubmQue;
 
 	// set admin queue attributes
-	HW_NVMe_writeReg32(host, NVMe_Reg_AdmQueAttr, (submQueSize) | (cmplQueSize << 16));
+	HW_NVMe_writeReg32(host, NVMe_Reg_AdmQueAttr, (submQueSize - 1) | ((cmplQueSize - 1) << 16));
 
 	// enable msi/msi-x
 	if (host->msixCapDesc) HW_PCIe_MSIX_enableAll(host->pci, host->msixCapDesc);
@@ -209,7 +210,7 @@ NVMe_Host *HW_NVMe_initDevice(PCIeConfig *pciCfg) {
 		{
 			int *nspInfo = kmalloc(HW_NVMe_pageSize(host), Slab_Flag_Private | Slab_Flag_Clear, NULL);
 			HW_NVMe_mkSubmEntry_Iden(&req.entry, nspInfo, 0x02, 0);
-			res = HW_NVMe_insReqWait(host, host->adminSubmQue, &req);
+			res = HW_NVMe_insReqWait(host, &host->adminSubmQue, &req);
 			if (res) {
 				printk(RED, BLACK, "NVMe: %#018lx: failed to get namespace info, res=%#010x\n", host, res);
 				goto InitFail;
@@ -220,15 +221,12 @@ NVMe_Host *HW_NVMe_initDevice(PCIeConfig *pciCfg) {
 			// for every namespace get the descriptor and create two submission queues and one completition queues for it
 			for (int i = 0; i < host->nspNum; i++) {
 				NVMe_Nsp *nsp = &host->nsp[i];
-				nsp->ioCmplQue = HW_NVMe_allocQue(cmplQueSize, 0);
-				nsp->ioSubmQue[0] = HW_NVMe_allocQue(submQueSize, NVMe_QueMgr_attr_isSubmQue);
-				nsp->ioSubmQue[1] = HW_NVMe_allocQue(submQueSize, NVMe_QueMgr_attr_isSubmQue);
-				host->ioCmplQue[i] = nsp->ioCmplQue;
-				host->ioSubmQue[i << 1] = nsp->ioSubmQue[0];
-				host->ioSubmQue[i << 1 | 1] = nsp->ioSubmQue[1];
-				nsp->ioCmplQue->iden = i + 1;
-				nsp->ioSubmQue[0]->iden = (i << 1) | 1;
-				nsp->ioSubmQue[1]->iden = (i << 1) + 2;
+				HW_NVMe_initQue(&nsp->cmplQue, cmplQueSize, i + 1, 0);
+				HW_NVMe_initQue(&nsp->submQue[0], submQueSize, (i + 1) << 1, NVMe_QueMgr_attr_isSubmQue);
+				HW_NVMe_initQue(&nsp->submQue[1], submQueSize, (i + 1) << 1 | 1, NVMe_QueMgr_attr_isSubmQue);
+				host->cmplQue[i + 1] = &nsp->cmplQue;
+				host->submQue[(i + 1) << 1] = &nsp->submQue[0];
+				host->submQue[(i + 1) << 1 | 1] = &nsp->submQue[1];
 				nsp->id = nspInfo[i];
 				nsp->host = host;
 			}
@@ -238,7 +236,7 @@ NVMe_Host *HW_NVMe_initDevice(PCIeConfig *pciCfg) {
 		for (int i = 0; i < host->nspNum; i++) {
 			NVMe_Nsp *nsp = &host->nsp[i];
 			HW_NVMe_mkSubmEntry_Iden(&req.entry, desc, NVMe_SubmEntry_Iden_Type_Nsp, nsp->id);
-			res = HW_NVMe_insReqWait(host, host->adminSubmQue, &req);
+			res = HW_NVMe_insReqWait(host, &host->adminSubmQue, &req);
 				
 			if (res) {
 				printk(RED, BLACK, "NVMe: %#018lx: failed to get information of Nsp#%d,res=%#010x\n", i, res);
@@ -249,24 +247,20 @@ NVMe_Host *HW_NVMe_initDevice(PCIeConfig *pciCfg) {
 			nsp->cap = desc->cap;
 
 			// make create completion queue command, submission queue command
-			HW_NVMe_mkSubmEntry_NewCmpl(&req.entry, nsp->ioCmplQue, i + 1);
-			res = HW_NVMe_insReqWait(host, host->adminSubmQue, &req);
+			HW_NVMe_mkSubmEntry_NewCmpl(&req.entry, &nsp->cmplQue, i + 1);
+			res = HW_NVMe_insReqWait(host, &host->adminSubmQue, &req);
 			if (res) {
 				printk(RED, BLACK, "NVMe: %#018lx: failed to create IO completion queue #%d, res=%#010x\n", host, i, res);
 				goto InitFail;
 			}
 
-			HW_NVMe_mkSubmEntry_NewSubm(&req.entry, nsp->ioSubmQue[0], nsp->ioCmplQue, 0);
-			res = HW_NVMe_insReqWait(host, host->adminSubmQue, &req);
-			if (res) {
-				printk(RED, BLACK, "NVMe: %#018lx: failed to create IO submission queue #%d:0, res=%#010x\n", host, i, res);
-				goto InitFail;
-			}
-			HW_NVMe_mkSubmEntry_NewSubm(&req.entry, nsp->ioSubmQue[1], nsp->ioCmplQue, 1);
-			res = HW_NVMe_insReqWait(host, host->adminSubmQue, &req);
-			if (res) {
-				printk(RED, BLACK, "NVMe: %#018lx: failed to create IO submission queue #%d:1, res=%#010x\n", host, i, res);
-				goto InitFail;
+			for (int j = 0; j < 2; j++) {
+				HW_NVMe_mkSubmEntry_NewSubm(&req.entry, &nsp->submQue[j], &nsp->cmplQue, 0);
+				res = HW_NVMe_insReqWait(host, &host->adminSubmQue, &req);
+				if (res) {
+					printk(RED, BLACK, "NVMe: %#018lx: failed to create IO submission queue #%d:%d, res=%#010x\n", host, i, j, res);
+					goto InitFail;
+				}
 			}
 
 			// register disk device
@@ -286,22 +280,30 @@ NVMe_Host *HW_NVMe_initDevice(PCIeConfig *pciCfg) {
 }
 
 IntrHandlerDeclare(HW_NVMe_intrHandler) {
-	NVMe_Host *host = (NVMe_Host *)(arg & ~0xful); int intrId = arg & 0xful;
-	// printk(RED, BLACK, "NVMe: %#018lx: interrupt %d\n", host, intrId);
-	NVMe_QueMgr *cmplQue = (intrId ? host->ioCmplQue[intrId - 1] : host->adminCmplQue);
-	int found = 0;
+	NVMe_Host *host = (NVMe_Host *)(arg & ~0xfful); 
+	NVMe_QueMgr *cmplQue, *submQue;
+	{
+		u16 intrId = arg & 0xfful;
+		// printk(RED, BLACK, "NVMe: %#018lx: interrupt %d\n", host, intrId);
+		cmplQue = host->cmplQue[intrId];
+	}
+	u16 found = 0;
 	while (1) {
 		NVMe_CmplQueEntry *cmplEntry = &cmplQue->cmplQue[cmplQue->hdr];
 		if (cmplEntry->phaseBit != cmplQue->phaseBit) break;
 		found++;
+		submQue = host->submQue[cmplEntry->submQueId];
 		// printk(WHITE, BLACK, "%d:%d->#%d:%d : cmplRes=%#018lx,%#018lx\n", intrId, cmplQue->hdr, cmplEntry->submQueId, cmplEntry->cmdId, *(u64 *)cmplEntry, *(u64 *)((u64)cmplEntry + sizeof(u64)));
-		NVMe_QueMgr *subQue = cmplEntry->submQueId == 0 ? host->adminSubmQue : host->ioSubmQue[cmplEntry->submQueId - 1];
-		NVMe_Request *req = subQue->reqSrc[cmplEntry->cmdId];
-		subQue->reqSrc[cmplEntry->cmdId] = NULL;
+		NVMe_Request *req = submQue->reqSrc[cmplEntry->cmdId];
+		submQue->reqSrc[cmplEntry->cmdId] = NULL;
 		memcpy(cmplEntry, &req->res, sizeof(NVMe_CmplQueEntry));
 		req->attr |= NVMe_Request_attr_Finished;
-		cmplQue->hdr++;
-		if (cmplQue->hdr == cmplQue->size) cmplQue->hdr = 0, cmplQue->phaseBit ^= 1;
+		{
+			u16 newHdr = cmplQue->hdr + 1;
+			if (newHdr == cmplQue->size) cmplQue->hdr = 0, cmplQue->phaseBit ^= 1;
+			else cmplQue->hdr = newHdr;
+		}
+		
 	}
 	if (found) HW_NVMe_ringCmplDb(host, cmplQue);
 }

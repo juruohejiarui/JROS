@@ -15,6 +15,19 @@ typedef struct RBNode {
 #define RBTree_Col_Red		0
 #define RBTree_Col_Black	1
 
+#define RBTree_insert(name, comparator) \
+static void name(RBTree *tree, RBNode *node, RBNode ***tgr, RBNode **par) { \
+	RBNode **src = &tree->root, *lst; \
+	while (*src) { \
+		lst = *src; \
+		if (comparator(node, lst)) \
+			src = &(*src)->left; \
+		else src = &(*src)->right; \
+	} \
+	*tgr = src, *par = lst; \
+}
+
+
 struct RBTree;
 
 // the comparator for RBTree, return 1 if a < b, 0 if a > b; invalid for a == b

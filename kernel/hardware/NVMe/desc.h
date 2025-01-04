@@ -4,11 +4,6 @@
 #include "../PCIe.h"
 #include "../diskdevice.h"
 
-typedef struct NVMe_QueDesc {
-	u64 addr;
-	u64 size;
-} __attribute__ ((packed)) NVMe_QueDesc;
-
 typedef struct NVMe_SubmQueEntry {
 	u32 cmd;
 	u32 nsid; // namespace identifier
@@ -38,13 +33,13 @@ typedef struct NVMe_Request {
 
 typedef struct NVMe_QueMgr {
 	u16 attr;
+	#define NVMe_QueMgr_attr_isSubmQue		(1ul << 0)
+	#define NVMe_QueMgr_attr_isAdmQue		(1ul << 1)
 	u16 size, iden;
 	union {
 		u16 til;
 		u16 hdr;
 	};
-	#define NVMe_QueMgr_attr_isSubmQue		(1ul << 0)
-	#define NVMe_QueMgr_attr_isAdmQue		(1ul << 1)
 	union {
 		void *que;
 		NVMe_SubmQueEntry *submQue;
@@ -53,7 +48,6 @@ typedef struct NVMe_QueMgr {
 	union {
 		struct {
 			NVMe_Request **reqSrc;
-			struct NVMe_QueMgr *tgrCmplQue;
 		};
 		u8 phaseBit;
 	};
@@ -79,9 +73,8 @@ typedef struct NVMe_NspDesc {
 struct NVMe_Host;
 
 typedef struct NVMe_Nsp {
-	NVMe_QueMgr *ioSubmQue[2];
-	NVMe_QueMgr *ioCmplQue;
-	u32 id;
+	NVMe_QueMgr submQue[2], cmplQue;
+	u32 id, lstSubmId;
 	u64 sz, cap;
 
 	DiskDevice device;
@@ -93,8 +86,8 @@ typedef struct NVMe_Host {
 	PCIeConfig *pci;
 	void *regs;
 
-	NVMe_QueMgr *adminSubmQue, *adminCmplQue;
-	NVMe_QueMgr *ioSubmQue[64], *ioCmplQue[64];
+	NVMe_QueMgr adminSubmQue, adminCmplQue;
+	NVMe_QueMgr *submQue[64], *cmplQue[64];
 
 	u64 cap, capStride;
 	u8 pgSize;
