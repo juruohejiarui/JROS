@@ -16,7 +16,6 @@ typedef struct FS_File {
 	// read SZ bytes to file and move this->opPtr to opPtr + sz
 	int (*read)(struct FS_File *file, void *buf, u64 sz);
 	int (*close)(struct FS_File *file);
-	int (*open)(struct FS_File *file);
 	u8 name[128];
 } FS_File;
 
@@ -28,7 +27,7 @@ typedef struct FS_Dir {
 	struct FS_File* (*getFile)(struct FS_Dir *dir, char *name);
 	struct FS_Dir* (*getDir)(struct FS_Dir *dir, char *name);
 	int (*nextEntry)(struct FS_DirEntry *entry);
-	int (*open)(struct FS_File *dir);
+	int (*open)(struct FS_File *file, u64 attr);
 	int (*close)(struct FS_Dir *dir);
 	u8 name[128];
 } FS_Dir;

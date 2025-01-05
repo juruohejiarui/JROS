@@ -150,8 +150,9 @@ typedef struct FS_JRFS_File {
 	FS_JRFS_EntryHdr hdr;
 	char *parPath;
 	u64 pathLen;
-	u64 opPgId;
+	u64 opPgId, grpHdrId;
 	u32 off;
+	struct FS_JRFS_Mgr *mgr;
 	FS_File file;
 } FS_JRFS_File;
 
@@ -160,10 +161,12 @@ typedef struct FS_JRFS_Dir {
 	char *parPath;
 	u64 pathLen;
 	u64 curEntryId;
+	struct FS_JRFS_Mgr *mgr;
 	FS_Dir dir;
 } FS_JRFS_Dir;
 
-typedef struct FS_JRFS_Mgrs {
+typedef struct FS_JRFS_Mgr {
+	SpinLock lock;
 	FS_JRFS_RootDesc *rootDesc;
 	u32 rootDescAccCnt;
 	RBTree pgDescCache, pgCache, bmCache;

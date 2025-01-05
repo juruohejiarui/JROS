@@ -17,7 +17,7 @@ int FS_JRFS_mkfs(FS_Part *partition) {
 	rootDesc->frPgNum = rootDesc->pgNum - (rootDesc->blkSz >> Page_4KShift);
 	rootDesc->frSize = rootDesc->frPgNum << Page_4KShift;
 	rootDesc->feat = FS_JRFS_RootDesc_feat_HugeDir | FS_JRFS_RootDesc_feat_HugePgGrp;
-	rootDesc->rootEntryOff = upAlignTo(sizeof(FS_JRFS_RootDesc), Page_4KSize) >> Page_4KShift;
+	rootDesc->rootEntryOff = upAlignTo(Page_4KSize + sizeof(FS_JRFS_RootDesc), Page_4KSize) >> Page_4KShift;
 	
 	// calculate offset and length for page descriptor
 	rootDesc->pgDescOff = upAlignTo(rootDesc->rootEntryOff * Page_4KSize + upAlignTo(sizeof(FS_JRFS_EntryHdr) + sizeof(FS_JRFS_DirNode), Page_4KSize), Page_4KSize) >> Page_4KShift;
@@ -39,6 +39,7 @@ int FS_JRFS_mkfs(FS_Part *partition) {
 	FS_writePage(partition, rootDesc, 0, 1);
 
 	void *lbas = kmalloc(Page_4KSize, Slab_Flag_Clear, NULL);
+	FS_writePage(partition, lbas, 0, 1);
 	// write zero to root entry list
 	{
 		for (int i = 0; i < 256; i++) FS_writePage(partition, lbas, rootDesc->rootEntryOff + i, 1);
@@ -157,7 +158,7 @@ static FS_JRFS_BlkBmCache *_getBmCache(FS_JRFS_Mgr *mgr, u64 blkId) {
 	if (mgr->bmCacheSz == FS_JRFS_BlkBmCacheLimit) _flushAndDelBmCache(mgr);
 	cache = _mkBmCache(mgr, blkId);	
 	_FindCache:
-	Atomic_inc(&cache->accCnt);
+	cache->accCnt++;
 	return cache;
 }
 
@@ -215,8 +216,7 @@ static FS_JRFS_PgDescCache *_getPgDescCache(FS_JRFS_Mgr *mgr, u64 pgId) {
 
 static FS_JRFS_PgDesc _getPgDesc(FS_JRFS_Mgr *mgr, u64 pgId) {
 	register FS_JRFS_PgDescCache *cache = _getPgDescCache(mgr, pgId & (~(FS_JRFS_PgDescPrePage - 1)));
-	FS_JRFS_PgDesc desc = cache->desc[pgId & (FS_JRFS_PgDescPrePage - 1)];
-	return desc;
+	return cache->desc[pgId & (FS_JRFS_PgDescPrePage - 1)];
 }
 
 static void _setPgDesc(FS_JRFS_Mgr *mgr, u64 pgId, FS_JRFS_PgDesc *desc) {
@@ -256,6 +256,11 @@ static u64 _allocPgGrp(FS_JRFS_Mgr *mgr, u8 log2Size) {
 		cache->buddyFlag[i + 1][nxtOff] = a ^ b;
 		cache->bmJiffies[i + 1] = cache->jiffies;
 	}
+	FS_JRFS_PgDesc desc = _getPgDesc(mgr, pgId);
+	desc.attr = FS_JRFS_PgDesc_IsAllocated | FS_JRFS_PgDesc_IsHeadPage;
+	desc.grpSz = log2Size;
+	desc.nxtPg = 0;
+	_setPgDesc(mgr, pgId, &desc);
 	return pgId;
 }
 static int _freePgGrp(FS_JRFS_Mgr *mgr, u64 pgId) {
@@ -342,7 +347,7 @@ static __always_inline__ FS_JRFS_DirNode *_getDirNode(FS_JRFS_Mgr *mgr, u64 pgId
 	return &_getPgCache(mgr, pgId)->dirNode;
 }
 
-static FS_JRFS_EntryHdr *_searchDirEntry(FS_JRFS_Mgr *mgr, FS_JRFS_EntryHdr *hdr, u64 hs) {
+static FS_JRFS_PgCache *_searchDirEntry(FS_JRFS_Mgr *mgr, FS_JRFS_EntryHdr *hdr, u64 hs) {
 	FS_JRFS_PgCache *cache = container(hdr, FS_JRFS_PgCache, entryHdr);
 	if (!(hdr->attr & FS_JRFS_FileHdr_attr_isDir)) return NULL;
 	FS_JRFS_DirNode *node = &cache->dirEntry.rootNode;
@@ -352,29 +357,132 @@ static FS_JRFS_EntryHdr *_searchDirEntry(FS_JRFS_Mgr *mgr, FS_JRFS_EntryHdr *hdr
 		if (!(nxtPgId = node->childPgId[dig]))
 			return NULL;
 		if (node->attr & FS_JRFS_DirNode_attr_isEnd) 
-			return _getEntryHdr(mgr, nxtPgId);
+			return _getPgCache(mgr, nxtPgId);
 		node = _getDirNode(mgr, nxtPgId);
 	}
 	return NULL;
 }
 
-static __always_inline__ FS_JRFS_File *_getFile(FS_JRFS_Mgr *mgr, u8 *path) {
+
+static FS_JRFS_File *_openFile(FS_JRFS_Mgr *mgr, u8 *path) {
 	u64 pathLen = strlen(path);
-	FS_JRFS_EntryHdr *curEntry = _getEntryHdr(mgr, mgr->rootDesc->rootEntryOff);
+	FS_JRFS_PgCache *curEntry = _getPgCache(mgr, mgr->rootDesc->rootEntryOff);
 	for (u64 pos = 0, to, hs = 0; pos < pathLen; pos = to + 1) {
 		to = pos;
 		while (path[to] != '/') hs = BKDRHash(hs, to), to++;
-		FS_JRFS_EntryHdr *subEntry = _searchDirEntry(mgr, curEntry, hs);
+		FS_JRFS_PgCache *subEntry = _searchDirEntry(mgr, &curEntry->entryHdr, hs);
 		if (!subEntry) return NULL;
 		curEntry = subEntry;
 	}
-	if (curEntry->attr & FS_JRFS_FileHdr_attr_isDir) return NULL;
+	if (curEntry->entryHdr.attr & FS_JRFS_FileHdr_attr_isDir) return NULL;
 	// make a file structure
 	FS_JRFS_File *file = kmalloc(sizeof(FS_JRFS_File), Slab_Flag_Clear, NULL);
+	curEntry->entryHdr.attr |= FS_JRFS_FileHdr_attr_isOpen;
+	if (_accPgCache(mgr, curEntry)) { kfree(file, 0); return NULL; };
 	memcpy(&curEntry, &file->hdr, sizeof(FS_JRFS_EntryHdr));
-	file->opPgId = curEntry->curPgId;
+
+	file->opPgId = file->grpHdrId = curEntry->pgId;
 	file->off = sizeof(FS_JRFS_EntryHdr);
+	file->mgr = mgr;
+
+	// file->file.write = FS_JRFS_write;
+	file->file.read = FS_JRFS_read;
+	// file->file.seek = FS_JRFS_seek;
+	// file->file.close = FS_JRFS_close;
 	return file;
+}
+
+static int _read(FS_JRFS_File *file, void *buf, u64 sz) {
+	file->file.opPtr += sz;
+	while (sz) {
+		FS_JRFS_PgCache *cache = _getPgCache(file->mgr, file->opPgId);
+		FS_JRFS_PgDesc grpDesc = _getPgDesc(file->mgr, file->grpHdrId);
+		if (!cache || !(grpDesc.attr & FS_JRFS_PgDesc_IsAllocated)) return -1;
+		if (sz > Page_4KSize - file->off) {
+			register u64 res = Page_4KSize - file->off;
+			memcpy(cache->page + file->off, buf, res);
+			sz -= res;
+			buf = (u8 *)buf + res;
+			if ((1ul << grpDesc.grpSz) >= file->opPgId + 1 - file->grpHdrId)
+				// move to next group
+				file->opPgId = file->grpHdrId = grpDesc.nxtPg;
+			else file->opPgId++;
+			file->off = 0;
+		} else {
+			memcpy(cache->page + file->off, buf, sz);
+			sz = 0;
+			buf = (u8 *)buf + sz;
+		}
+	}
+	return 0;
+}
+
+static int _write(FS_JRFS_File *file, void *buf, u64 sz) {
+	file->file.opPtr += sz;
+	while (sz) {
+		FS_JRFS_PgCache *cache = _getPgCache(file->mgr, file->opPgId);
+		FS_JRFS_PgDesc grpDesc = _getPgDesc(file->mgr, file->grpHdrId);
+		if (!cache || !(grpDesc.attr & FS_JRFS_PgDesc_IsAllocated)) return -1;
+		if (sz > Page_4KSize - file->off) {
+			register u64 res = Page_4KSize - file->off;
+			memcpy(buf, cache->page + file->off, res);
+			_accPgCache(file->mgr, cache);
+			sz -= res;
+			buf = (u8 *)buf + res;
+			if ((1ul << grpDesc.grpSz) >= file->opPgId + 1 - file->grpHdrId) {
+				// allocate 1 page if necessary
+				if (!grpDesc.nxtPg) {
+					u64 pgId = _allocPgGrp(file->mgr, 0);
+					if (!pgId) return -1;
+					grpDesc.nxtPg = pgId;
+					_setPgDesc(file->mgr, file->grpHdrId, &grpDesc);
+					file->hdr.filePgNum++;
+					file->hdr.fileSz += Page_4KSize;
+				}
+				file->opPgId = file->grpHdrId = grpDesc.nxtPg;
+			} else file->opPgId++;
+			file->off = 0;
+		} else {
+			memcpy(buf, cache->page + file->off, sz);
+			_accPgCache(file->mgr, cache);
+			buf = (u8 *)buf + sz;
+			sz = 0;
+		}
+	}
+	return 0;
+}
+
+static int _seek(FS_JRFS_File *file, u64 opPtr) {
+	if (file->hdr.fileSz <= opPtr) return -1;
+	file->file.opPtr = 0;
+	file->off = sizeof(FS_JRFS_EntryHdr);
+	file->opPgId = file->hdr.curPgId;
+	while (opPtr != file->file.opPtr) {
+		u64 res = Page_4KSize - file->off;
+		if (file->file.opPtr + res < opPtr) {
+			
+		}
+	}
+}
+
+int FS_JRFS_read(FS_File *file, void *buf, u64 sz) {
+	FS_JRFS_File *jrfsFile = container(file, FS_JRFS_File, file);
+	SpinLock_lock(&jrfsFile->mgr->lock);
+	register int res = _read(jrfsFile, buf, sz);
+	SpinLock_unlock(&jrfsFile->mgr->lock);
+	return res;
+}
+
+int FS_JRFS_write(FS_File *file, void *buf, u64 sz) {
+	FS_JRFS_File *jrfsFile = container(file, FS_JRFS_File, file);
+	SpinLock_lock(&jrfsFile->mgr->lock);
+	register int res = _write(jrfsFile, buf, sz);
+	SpinLock_unlock(&jrfsFile->mgr->lock);
+	return res;
+}
+
+int FS_JRFS_seek(FS_File *file, u64 ptr) {
+
 }
 
 int FS_JRFS_loadfs(FS_Part *part) {
@@ -385,6 +493,7 @@ int FS_JRFS_loadfs(FS_Part *part) {
 	RBTree_init(&mgr->pgDescCache, _insertPgDescCache);
 	RBTree_init(&mgr->bmCache, _insertBmCache);
 	RBTree_init(&mgr->pgCache, _insertPgCache);
+	SpinLock_init(&mgr->lock);
 	FS_registerPart(&mgr->partition);
 
 	return 0;
