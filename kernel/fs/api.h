@@ -10,7 +10,7 @@ struct FS_DirEntry;
 typedef struct FS_File {
 	u64 opPtr;
 	u64 curFileSz;
-	int (*seek)(u64 opPtr);
+	int (*seek)(struct FS_File *file, u64 opPtr);
 	// write SZ bytes to file and move this->opPtr to opPtr + sz
 	int (*write)(struct FS_File *file, void *buf, u64 sz);
 	// read SZ bytes to file and move this->opPtr to opPtr + sz
@@ -20,15 +20,8 @@ typedef struct FS_File {
 } FS_File;
 
 typedef struct FS_Dir {
-	int (*newFile)(struct FS_Dir *dir, char *name);
-	int (*newDir)(struct FS_Dir *dir, char *name);
-	int (*delFile)(struct FS_Dir *dir, struct FS_File *file);
-	int (*delDir)(struct FS_Dir *dir, struct FS_Dir *subDir);
-	struct FS_File* (*getFile)(struct FS_Dir *dir, char *name);
-	struct FS_Dir* (*getDir)(struct FS_Dir *dir, char *name);
-	int (*nextEntry)(struct FS_DirEntry *entry);
-	int (*open)(struct FS_File *file, u64 attr);
-	int (*close)(struct FS_Dir *dir);
+	int (*nextEntry)(struct FS_Dir *dir);
+	int (*closeDir)(struct FS_Dir *dir);
 	u8 name[128];
 } FS_Dir;
 
@@ -61,12 +54,10 @@ typedef struct FS_Part {
 	// process after remove the listEle from the partition list
 	void (*unregister)(struct FS_Part *par);
 
-	int (*accFile)(struct FS_Part *par, u32 uid, u8 *path, struct FS_File *file);
-	int (*accDir)(struct FS_Part *par, u32 uid, u8 *path, struct FS_Dir *dir);
-	int (*relFile)(struct FS_Part *par, struct FS_File *file);
-	int (*relDir)(struct FS_Part *par, struct FS_Dir *file);
-	int (*makeFile)(struct FS_Part *par, u32 uid, u8 *path);
-	int (*makeDir)(struct FS_Part *par, u32 uid, u8 *path);
+	struct FS_File *(*openFile)(struct FS_Part *par, u32 uid, u8 *path);
+	struct FS_Dir *(*openDir)(struct FS_Part *par, u32 uid, u8 *path);
+	int (*mkFile)(struct FS_Part *par, u32 uid, u8 *path);
+	int (*mkDir)(struct FS_Part *par, u32 uid, u8 *path);
 	int (*delFile)(struct FS_Part *par, u32 uid, u8 *path);
 	int (*delDir)(struct FS_Part *par, u32 uid, u8 *path);
 	int (*setAcc)(struct FS_Part *par, u32 uid, u8 *path, u32 acc);

@@ -39,11 +39,7 @@ int FS_JRFS_mkfs(FS_Part *partition) {
 	FS_writePage(partition, rootDesc, 0, 1);
 
 	void *lbas = kmalloc(Page_4KSize, Slab_Flag_Clear, NULL);
-	FS_writePage(partition, lbas, 0, 1);
-	// write zero to root entry list
-	{
-		for (int i = 0; i < 256; i++) FS_writePage(partition, lbas, rootDesc->rootEntryOff + i, 1);
-	}
+	FS_writePage(partition, lbas, rootDesc->pgDescOff, upAlignTo(sizeof(FS_JRFS_EntryHdr) + sizeof(FS_JRFS_DirNode), Page_4KSize) >> Page_4KShift);
 	// write page descriptors
 	{
 		{
@@ -227,7 +223,7 @@ static void _setPgDesc(FS_JRFS_Mgr *mgr, u64 pgId, FS_JRFS_PgDesc *desc) {
 
 static __always_inline__ u64 _buddyOff(u64 offset, u64 sz) { return offset ^ (1ul << sz); }
 
-// allocate page group with size=2^log2Size
+// allocate page group with size=2^log2Size, set up page descriptor
 // return 0 if failed
 static u64 _allocPgGrp(FS_JRFS_Mgr *mgr, u8 log2Size) {
 	u64 off, cur = mgr->rootDesc->lstAllocBlk;
@@ -347,6 +343,7 @@ static __always_inline__ FS_JRFS_DirNode *_getDirNode(FS_JRFS_Mgr *mgr, u64 pgId
 	return &_getPgCache(mgr, pgId)->dirNode;
 }
 
+// search for a directory entry with hash value HS in a specific directory, whose header if HDR
 static FS_JRFS_PgCache *_searchDirEntry(FS_JRFS_Mgr *mgr, FS_JRFS_EntryHdr *hdr, u64 hs) {
 	FS_JRFS_PgCache *cache = container(hdr, FS_JRFS_PgCache, entryHdr);
 	if (!(hdr->attr & FS_JRFS_FileHdr_attr_isDir)) return NULL;
@@ -356,16 +353,15 @@ static FS_JRFS_PgCache *_searchDirEntry(FS_JRFS_Mgr *mgr, FS_JRFS_EntryHdr *hdr,
 		u64 nxtPgId;
 		if (!(nxtPgId = node->childPgId[dig]))
 			return NULL;
-		if (node->attr & FS_JRFS_DirNode_attr_isEnd) 
+		if (node->childAttr[dig] & FS_JRFS_DirNode_childAttr_isEnd) 
 			return _getPgCache(mgr, nxtPgId);
 		node = _getDirNode(mgr, nxtPgId);
 	}
 	return NULL;
 }
 
-
-static FS_JRFS_File *_openFile(FS_JRFS_Mgr *mgr, u8 *path) {
-	u64 pathLen = strlen(path);
+static FS_JRFS_PgCache *_getDirEntry(FS_JRFS_Mgr *mgr, u8 *path, u64 pathLen) {
+	if (pathLen == 0) pathLen = strlen(path);
 	FS_JRFS_PgCache *curEntry = _getPgCache(mgr, mgr->rootDesc->rootEntryOff);
 	for (u64 pos = 0, to, hs = 0; pos < pathLen; pos = to + 1) {
 		to = pos;
@@ -374,7 +370,15 @@ static FS_JRFS_File *_openFile(FS_JRFS_Mgr *mgr, u8 *path) {
 		if (!subEntry) return NULL;
 		curEntry = subEntry;
 	}
-	if (curEntry->entryHdr.attr & FS_JRFS_FileHdr_attr_isDir) return NULL;
+	return curEntry;
+}
+
+static FS_JRFS_File *_openFile(FS_JRFS_Mgr *mgr, u8 *path) {
+	FS_JRFS_PgCache *curEntry = _getDirEntry(mgr, path, 0);
+	if (!curEntry || curEntry->entryHdr.attr & FS_JRFS_FileHdr_attr_isDir) {
+		printk(WHITE, BLACK, "JRFS: %#018lx: file %s does not exist.\n", mgr, path);
+		return NULL;
+	}
 	// make a file structure
 	FS_JRFS_File *file = kmalloc(sizeof(FS_JRFS_File), Slab_Flag_Clear, NULL);
 	curEntry->entryHdr.attr |= FS_JRFS_FileHdr_attr_isOpen;
@@ -385,11 +389,247 @@ static FS_JRFS_File *_openFile(FS_JRFS_Mgr *mgr, u8 *path) {
 	file->off = sizeof(FS_JRFS_EntryHdr);
 	file->mgr = mgr;
 
-	// file->file.write = FS_JRFS_write;
+	file->file.write = FS_JRFS_write;
 	file->file.read = FS_JRFS_read;
-	// file->file.seek = FS_JRFS_seek;
-	// file->file.close = FS_JRFS_close;
+	file->file.seek = FS_JRFS_seek;
+	file->file.close = FS_JRFS_close;
 	return file;
+}
+
+static int _linkEntry(FS_JRFS_Mgr *mgr, u64 dirEntryPgId, u64 subEntryPgId, u8 *name, u64 len, u64 hs) {
+	FS_JRFS_PgCache *curPg = _getPgCache(mgr, dirEntryPgId);
+	u8 index;
+	FS_JRFS_DirNode *curNd = &curPg->dirEntry.rootNode;
+	{
+		FS_JRFS_EntryHdr *dirHdr = &curPg->entryHdr;
+		if (~dirHdr->attr & FS_JRFS_FileHdr_attr_isDir) {
+			printk(RED, BLACK, "JRFS: %#018lx: failed to link directory from %#018lx to %#018lx. %#018lx is not directory.\n", mgr, dirEntryPgId, dirEntryPgId);
+			return -1;
+		}
+		dirHdr->subEntryNum++;
+		_accPgCache(mgr, curPg);
+	}
+	while (1) {
+		index = (hs >> (curNd->dep << 3)) & 0xff;
+
+		FS_JRFS_PgCache *nxtPg;
+		FS_JRFS_DirNode *nxtNd;
+		u64 nxtPgId;
+		u8 curDep;
+
+		// there is node of next layer / of an existed entry
+		if (curNd->childPgId[index]) {
+			if (curNd->childAttr[index] & FS_JRFS_DirNode_childAttr_isEnd) {
+				// this node points to an existed entry
+				// if the depth is 7, then there is hash conflict, return fail code
+				if (curNd->dep == sizeof(u64) / 8 - 1) {
+					printk(RED, BLACK, "JRFS: %#018lx: failed to link directory from %#018lx to %#018lx. hash conflict.\n",
+						mgr, dirEntryPgId, subEntryPgId);
+					return -1;
+				}
+				// create a new node
+				u64 newPgId = _allocPgGrp(mgr, 0);
+				if (!newPgId) {
+					printk(RED, BLACK, "JRFS: %#018lx: failed to link directory from %#018lx to %#018lx. failed to allocate directory node.\n",
+						mgr, dirEntryPgId, subEntryPgId);
+					return -1;
+				}
+				curDep = curNd->dep;
+				nxtPgId = curNd->childPgId[index];
+				curNd->childAttr[index] &= ~FS_JRFS_DirNode_childAttr_isEnd;
+				curNd->childPgId[index] = newPgId;
+				_accPgCache(mgr, curPg);
+				u64 neighHs = _getPgCache(mgr, nxtPgId)->entryHdr.nameHash;
+				nxtPg = _getPgCache(mgr, newPgId);
+				// set up the node
+				nxtNd = &nxtPg->dirNode;
+				memset(nxtNd, 0, sizeof(FS_JRFS_DirNode));
+				nxtNd->dep = curDep + 1;
+				register u8 neighIndex = (neighHs >> ((curDep + 1) << 3)) & 0xff;
+				nxtNd->childAttr[neighIndex] = FS_JRFS_DirNode_childAttr_isEnd;
+				nxtNd->childPgId[neighIndex] = nxtPgId;
+				nxtNd->subEntryNum = 1;
+				_accPgCache(mgr, nxtPg);
+			} else {
+				// move to next node
+				nxtPg = _getPgCache(mgr, curNd->childPgId[index]);
+				nxtNd = &nxtPg->dirNode;
+			}
+		} else // no entry for next layer, then this sub entry can be the link from curNd->child[index]
+			break;
+		curNd->subEntryNum++;
+		curPg = nxtPg, curNd = nxtNd;
+	}
+	curNd->subEntryNum++;
+	curNd->childAttr[index] |= FS_JRFS_DirNode_childAttr_isEnd;
+	curNd->childPgId[index] = subEntryPgId;
+	_accPgCache(mgr, curPg);
+	return 0;
+}
+
+static int _disLinkEntry(FS_JRFS_Mgr *mgr, u64 dirEntryPgId, u64 hs) {
+	FS_JRFS_PgCache *curPg = _getPgCache(mgr, dirEntryPgId);
+	FS_JRFS_DirNode *curNd = &curPg->dirEntry.rootNode;
+	u8 index; u64 curPgId = dirEntryPgId;
+	{
+		FS_JRFS_EntryHdr *hdr = &curPg->entryHdr;
+		if (~hdr->attr & FS_JRFS_FileHdr_attr_isDir) {
+			printk(RED, BLACK, "JRFS: %#018lx: failed to dislink entry with hash %#018lx from %#018lx. %#018lx is not directory\n.", mgr, hs, dirEntryPgId, dirEntryPgId);
+			return -1;
+		}
+		hdr->subEntryNum--;
+		_accPgCache(mgr, hdr);
+	}
+	while (1) {
+		index = (hs >> (curNd->dep << 3)) & 0xff;
+		if (!curNd->childPgId[index]) {
+			printk(RED, BLACK, "JRFS: %#018lx: failed to dislink entry with hash %#018lx from %#018lx\n.", mgr, hs, dirEntryPgId);
+			return -1;
+		}
+		curNd->subEntryNum--;
+		u64 nxtPgId = curNd->childPgId[index];
+		if (!curNd->subEntryNum || (curNd->childAttr[index] & FS_JRFS_DirNode_childAttr_isEnd))
+			curNd->childPgId[index] = 0;
+			curNd->childAttr[index] = 0;
+		_accPgCache(mgr, curPg);
+		if (!curNd->subEntryNum && curPgId != dirEntryPgId) {
+			// delete this node
+			_freePgGrp(mgr, curPgId);
+		}
+		curPgId = nxtPgId;
+		curPg = _getPgCache(mgr, nxtPgId);
+		curNd = &curPg->dirNode;
+	}
+	return 0;
+}
+
+static int _freePgGrpList(FS_JRFS_Mgr *mgr, u64 firGrpHdrId) {
+	// free page table of this file
+	u64 curGrpHdrId = firGrpHdrId;
+	while (1) {
+		FS_JRFS_PgDesc curGrp = _getPgDesc(mgr, curGrpHdrId);
+		u64 nxtGrpHdrId = curGrp.nxtPg;
+		if (_freePgGrp(mgr, curGrpHdrId)) return -1;
+		if (!nxtGrpHdrId) break;
+		curGrpHdrId = nxtGrpHdrId;
+	}
+	return 0;
+}
+ 
+static int _mkFile(FS_JRFS_Mgr *mgr, u8 *path) {
+	// get the directory node first
+	u64 pathLen = strlen(path), hs = 0, to, dirPgId;
+	for (u64 i = 0; i < pathLen; i++) if (path[i] =='/') to = i;
+	FS_JRFS_PgCache *dir = _getDirEntry(mgr, path, to - 1);
+	if (!dir) {
+		printk(RED, BLACK, "JRFS: %#018lx: failed to create file %s. path does not exist.\n", mgr, path);
+		return -1;
+	}
+	dirPgId = dir->entryHdr.curPgId;
+	for (u64 pos = to + 1; pos < pathLen; pos++) hs = BKDRHash(hs, path[pos]);
+	if (_searchDirEntry(mgr, &dir->entryHdr, hs)) {
+		printk(RED, BLACK, "JRFS: %#018lx: failed to create file %s. hash conflict with %#018lx.\n", mgr, path, hs);
+		return -1;
+	}
+	_createFile:
+	// allocate a page for this file
+	u64 pgId = _allocPgGrp(mgr, 0);
+	if (!pgId) {
+		printk(RED, BLACK, "JRFS: %#018lx: failed to create file %s. failed to allocate page.\n", mgr, path);
+		return -1;
+	}
+	FS_JRFS_PgCache *cache = _getPgCache(mgr, pgId);
+	if (!cache) {
+		printk(RED, BLACK, "JRFS: %#018lx: failed to create file %s. failed to access page cache.\n", mgr, path);
+		return -1;
+	}
+	{
+		FS_JRFS_EntryHdr *hdr = &cache->entryHdr;
+		memset(hdr, 0, sizeof(FS_JRFS_EntryHdr));
+		hdr->curPgId = pgId;
+		hdr->filePgNum = 1;
+		hdr->fileSz = (hdr->filePgNum << Page_4KShift);
+		hdr->parDirPgId = dirPgId;
+	}
+	_accPgCache(mgr, cache);
+	register int res = _linkEntry(mgr, dirPgId, pgId, path + to + 1, pathLen - to - 1, hs);
+	if (!res) {
+		printk(RED, BLACK, "JRFS: %#018lx: failed to create file %s. failed to link entries.\n", mgr, path);
+		_freePgGrp(mgr, pgId);
+		return -1;
+	}
+	return 0;
+}
+
+static int _mkDir(FS_JRFS_Mgr *mgr, u8 *path) {
+	u64 pathLen = strlen(path), hs = 0, to, parPgId;
+	for (u64 i = 0; i < pathLen; i++) if (path[i] =='/') to = i;
+	FS_JRFS_PgCache *par = _getDirEntry(mgr, path, to - 1);
+	if (!par) {
+		printk(RED, BLACK, "JRFS: %#018lx: failed to create file %s. path does not exist.\n", mgr, path);
+		return -1;
+	}
+	parPgId = par->entryHdr.curPgId;
+	for (u64 pos = to + 1; pos < pathLen; pos++) hs = BKDRHash(hs, path[pos]);
+	if (_searchDirEntry(mgr, &par->entryHdr, hs)) {
+		printk(RED, BLACK, "JRFS: %#018lx: failed to create directory %s. hash conflict with %#018lx.\n", mgr, path, hs);
+		return -1;
+	}
+	u64 pgId = _allocPgGrp(mgr, 0);
+	if (!pgId) {
+		printk(RED, BLACK, "JRFS: %#018lx: failed to create directory %s. failed to allocate page.\n", mgr, path);
+		return -1;
+	}
+	FS_JRFS_PgCache *cache = _getPgCache(mgr, pgId);
+	if (!cache) {
+		printk(RED, BLACK, "JRFS: %#018lx: failed to create directory %s. failed to access page cache.\n", mgr, path);
+		return -1;
+	}
+	{
+		FS_JRFS_EntryHdr *hdr = &cache->entryHdr;
+		memset(hdr, 0, sizeof(FS_JRFS_EntryHdr));
+		hdr->curPgId = pgId;
+		hdr->attr = FS_JRFS_FileHdr_attr_isDir;
+		hdr->parDirPgId = parPgId;
+	}
+	_accPgCache(mgr, cache);
+	register int res = _linkEntry(mgr, parPgId, pgId, path + to + 1, pathLen - to - 1, hs);
+	if (!res) {
+		printk(RED, BLACK, "JRFS: %#018lx: failed to create directory %s. failed to link entries.\n", mgr, path);
+		_freePgGrp(mgr, pgId);
+		return -1;
+	}
+	return 0;
+}
+
+static int _delFile(FS_JRFS_Mgr *mgr, u8 *path) {
+	FS_JRFS_PgCache *cache = _getDirEntry(mgr, path, 0);
+	int res = 0;
+	if (!cache) {
+		printk(RED, BLACK, "JRFS: %#018lx: failed to delete file %s. does not exists.\n", mgr, path);
+		return -1;
+	}
+	// dislink the file from the parent directory
+	{
+		FS_JRFS_EntryHdr *hdr = &cache->entryHdr;
+		res |= _disLinkEntry(mgr, hdr->parDirPgId, hdr->nameHash);
+	}
+	{
+		// free page table of this file
+		u64 curGrpHdrId = cache->pgId;
+		while (1) {
+			FS_JRFS_PgDesc curGrp = _getPgDesc(mgr, &cache->pgId);
+			u64 nxtGrpHdrId = curGrp.nxtPg;
+			_freePgGrp(mgr, curGrpHdrId);
+			if (!nxtGrpHdrId) break;
+			curGrpHdrId = nxtGrpHdrId;
+		}
+	}
+	return 0;
+}
+
+static int _delNode(FS_JRFS_Mgr *mgr, u8 *path) {
+	
 }
 
 static int _read(FS_JRFS_File *file, void *buf, u64 sz) {
@@ -458,11 +698,31 @@ static int _seek(FS_JRFS_File *file, u64 opPtr) {
 	file->off = sizeof(FS_JRFS_EntryHdr);
 	file->opPgId = file->hdr.curPgId;
 	while (opPtr != file->file.opPtr) {
-		u64 res = Page_4KSize - file->off;
+		FS_JRFS_PgDesc grpDesc = _getPgDesc(file->mgr, file->grpHdrId);
+		u64 res = (1ul << (grpDesc.nxtPg + Page_4KShift)) - file->off;
 		if (file->file.opPtr + res < opPtr) {
-			
+			file->off = 0;
+			file->grpHdrId = file->opPgId = grpDesc.nxtPg;
+			file->opPgId += res;
+		} else {
+			file->off = (file->off + (opPtr - file->file.opPtr)) % Page_4KSize;
+			file->opPgId = file->grpHdrId + ((file->off + (opPtr - file->file.opPtr)) >> Page_4KShift);
+			file->file.opPtr = opPtr;
 		}
 	}
+	return 0;
+}
+
+static int _close(FS_JRFS_File *file) {
+	// write entry hdr back
+	FS_JRFS_PgCache *hdrCache = _getPgCache(file->mgr, file->hdr.curPgId);
+	if (!hdrCache) return -1;
+	file->hdr.attr &= ~FS_JRFS_FileHdr_attr_isOpen;
+	file->hdr.modiTime = 0;
+	memcpy(&file->hdr, &hdrCache->entryHdr, sizeof(FS_JRFS_EntryHdr));
+	_accPgCache(file->mgr, hdrCache);
+	kfree(file, 0);
+	return 0;
 }
 
 int FS_JRFS_read(FS_File *file, void *buf, u64 sz) {
@@ -482,7 +742,27 @@ int FS_JRFS_write(FS_File *file, void *buf, u64 sz) {
 }
 
 int FS_JRFS_seek(FS_File *file, u64 ptr) {
+	FS_JRFS_File *jrfsFile = container(file, FS_JRFS_File, file);
+	SpinLock_lock(&jrfsFile->mgr->lock);
+	register int res = _seek(jrfsFile, ptr);
+	SpinLock_unlock(&jrfsFile->mgr->lock);
+	return res;
+}
 
+int FS_JRFS_close(FS_File *file) {
+	FS_JRFS_File *jrfsFile = container(file, FS_JRFS_File, file);
+	SpinLock_lock(&jrfsFile->mgr->lock);
+	register int res = _close(jrfsFile);
+	SpinLock_unlock(&jrfsFile->mgr->lock);
+	return res;
+}
+
+FS_File *FS_JRFS_openFile(FS_Part *par, u32 uid, u8 *path) {
+	FS_JRFS_Mgr *mgr = container(par, FS_JRFS_Mgr, partition);
+	SpinLock_lock(&mgr->lock);
+	FS_JRFS_File *jrfsFile = _openFile(mgr, path);
+	SpinLock_unlock(&mgr->lock);
+	return &jrfsFile->file;
 }
 
 int FS_JRFS_loadfs(FS_Part *part) {
@@ -494,6 +774,9 @@ int FS_JRFS_loadfs(FS_Part *part) {
 	RBTree_init(&mgr->bmCache, _insertBmCache);
 	RBTree_init(&mgr->pgCache, _insertPgCache);
 	SpinLock_init(&mgr->lock);
+
+	mgr->partition.openFile = FS_JRFS_openFile;
+
 	FS_registerPart(&mgr->partition);
 
 	return 0;

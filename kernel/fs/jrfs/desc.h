@@ -26,15 +26,14 @@ typedef struct FS_JRFS_PgDesc {
 
 
 typedef struct FS_JRFS_DirNode {
-	union {
-		u64 childPgId[256];
-	};
+	u64 childPgId[256];
+	u8 childAttr[256];
+	#define FS_JRFS_DirNode_childAttr_isEnd	(1ul << 0)
 	u8 attr;
 	// the child of this node is the entry header
-	#define FS_JRFS_DirNode_attr_isEnd	(1ul << 0)
 	u8 dep;
 	u16 reserved;
-	u32 childSz;
+	u32 subEntryNum;
 	u64 curPgId;
 } __attribute__ ((packed)) FS_JRFS_DirNode;
 
@@ -66,11 +65,10 @@ typedef struct FS_JRFS_EntryHdr {
 			u64 fileSz;
 		};
 		struct {
-			u64 prevEntry;
-			u64 nextEntry;
-			u64 firEntry;
+			u64 subEntryNum;
 		};
 	};
+	u64 parDirPgId;
 } __attribute__ ((packed)) FS_JRFS_EntryHdr;
 
 typedef struct FS_JRFS_RootDesc {
