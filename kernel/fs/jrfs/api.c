@@ -396,6 +396,15 @@ static FS_JRFS_File *_openFile(FS_JRFS_Mgr *mgr, u8 *path) {
 	return file;
 }
 
+static FS_JRFS_Dir *_openDir(FS_JRFS_Mgr *mgr, u8 *path) {
+	FS_JRFS_PgCache *curEntry = _getDirEntry(mgr, path, 0);
+	if (!curEntry || (~curEntry->entryHdr.attr & FS_JRFS_FileHdr_attr_isDir)) {
+		printk(WHITE, BLACK, "JRFS: %#018lx: directory %s does not exists.\n", mgr, path);
+		return NULL;
+	}
+	FS_JRFS_PgCache *
+}
+
 static int _linkEntry(FS_JRFS_Mgr *mgr, u64 dirEntryPgId, u64 subEntryPgId, u8 *name, u64 len, u64 hs) {
 	FS_JRFS_PgCache *curPg = _getPgCache(mgr, dirEntryPgId);
 	u8 index;
@@ -478,7 +487,7 @@ static int _disLinkEntry(FS_JRFS_Mgr *mgr, u64 dirEntryPgId, u64 hs) {
 			return -1;
 		}
 		hdr->subEntryNum--;
-		_accPgCache(mgr, hdr);
+		_accPgCache(mgr, curPg);
 	}
 	while (1) {
 		index = (hs >> (curNd->dep << 3)) & 0xff;
@@ -509,7 +518,10 @@ static int _freePgGrpList(FS_JRFS_Mgr *mgr, u64 firGrpHdrId) {
 	while (1) {
 		FS_JRFS_PgDesc curGrp = _getPgDesc(mgr, curGrpHdrId);
 		u64 nxtGrpHdrId = curGrp.nxtPg;
-		if (_freePgGrp(mgr, curGrpHdrId)) return -1;
+		if (_freePgGrp(mgr, curGrpHdrId)) {
+			printk(RED, BLACK, "JRFS: %#018lx: failed to free page group %#018lx\n", mgr, curGrpHdrId);
+			return -1;
+		}
 		if (!nxtGrpHdrId) break;
 		curGrpHdrId = nxtGrpHdrId;
 	}
@@ -609,27 +621,43 @@ static int _delFile(FS_JRFS_Mgr *mgr, u8 *path) {
 		printk(RED, BLACK, "JRFS: %#018lx: failed to delete file %s. does not exists.\n", mgr, path);
 		return -1;
 	}
+	u64 pgId = cache->pgId;
 	// dislink the file from the parent directory
 	{
 		FS_JRFS_EntryHdr *hdr = &cache->entryHdr;
+		if (hdr->attr & FS_JRFS_FileHdr_attr_isOpen) {
+			printk(RED, BLACK, "JRFS: %#018lx: failed to delete file %s. it is open.\n", mgr, path);
+			return -1;
+		}
 		res |= _disLinkEntry(mgr, hdr->parDirPgId, hdr->nameHash);
 	}
-	{
-		// free page table of this file
-		u64 curGrpHdrId = cache->pgId;
-		while (1) {
-			FS_JRFS_PgDesc curGrp = _getPgDesc(mgr, &cache->pgId);
-			u64 nxtGrpHdrId = curGrp.nxtPg;
-			_freePgGrp(mgr, curGrpHdrId);
-			if (!nxtGrpHdrId) break;
-			curGrpHdrId = nxtGrpHdrId;
-		}
-	}
-	return 0;
+	res |= _freePgGrpList(mgr, pgId);
+	return res;
 }
 
-static int _delNode(FS_JRFS_Mgr *mgr, u8 *path) {
-	
+static int _delDir(FS_JRFS_Mgr *mgr, u8 *path) {
+	FS_JRFS_PgCache *cache = _getDirEntry(mgr, path, 0);
+	int res = 0;
+	if (!cache) {
+		printk(RED, BLACK, "JRFS: %#018lx: failed to delete directory %s. does not exists.\n", mgr, path);
+		return -1;
+	}
+	u64 pgId = cache->pgId;
+	// dislink the directory from the parent
+	{
+		FS_JRFS_EntryHdr *hdr = &cache->entryHdr;
+		if (hdr->subEntryNum) {
+			printk(RED, BLACK, "JRFS: %#018lx: failed to delete directory %s. Directory is not empty.\n", mgr, path);
+			return -1;
+		}
+		if (hdr->attr & FS_JRFS_FileHdr_attr_isOpen) {
+			printk(RED, BLACK, "JRFS: %#018lx: failed to delete directory %s. it is open.\n", mgr, path);
+			return -1;
+		}
+		res |= _disLinkEntry(mgr, hdr->parDirPgId, hdr->nameHash);
+	}
+	res |= _freePgGrp(mgr, pgId);
+	return res;
 }
 
 static int _read(FS_JRFS_File *file, void *buf, u64 sz) {
