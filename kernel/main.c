@@ -39,6 +39,7 @@ void startKernel() {
     HW_Timer_init();
 
     IO_sti();
+    IO_hlt();
 
     FS_init();
 

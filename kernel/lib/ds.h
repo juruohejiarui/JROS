@@ -18,46 +18,46 @@ typedef struct List {
 #define __always_inline__  inline __attribute__ ((always_inline))
 #define __noinline__ __attribute__ ((noinline))
 
-__always_inline__ void List_init(List *list) {
+static __always_inline__ void List_init(List *list) {
     list->prev = list->next = list;
 }
 
-__always_inline__ void List_insBehind(List *ele, List *pos) {
+static __always_inline__ void List_insBehind(List *ele, List *pos) {
     ele->next = pos->next, ele->prev = pos;
     pos->next->prev = ele;
     pos->next = ele;
 }
 
-__always_inline__ void List_insBefore(List *ele, List *pos) {
+static __always_inline__ void List_insBefore(List *ele, List *pos) {
     ele->next = pos, ele->prev = pos->prev;
     pos->prev->next = ele;
     pos->prev = ele;
 }
 
-__always_inline__ int List_isEmpty(List *ele) { return ele->prev == ele && ele->next == ele; }
+static __always_inline__ int List_isEmpty(List *ele) { return ele->prev == ele && ele->next == ele; }
 
-__always_inline__ void List_del(List *ele) {
+static __always_inline__ void List_del(List *ele) {
     ele->next->prev = ele->prev;
     ele->prev->next = ele->next;
     ele->prev = ele->next = ele;
 }
 
-__always_inline__ u64 Bit_get(u64 *addr, u64 index) { return ((*addr) >> index) & 1; }
-__always_inline__ void Bit_set1(u64 *addr, u64 index) { 
+static __always_inline__ u64 Bit_get(u64 *addr, u64 index) { return ((*addr) >> index) & 1; }
+static __always_inline__ void Bit_set1(u64 *addr, u64 index) { 
 	__asm__ volatile (
 		"btsq %1, %0		\n\t"
 		: "+m"(*addr)
 		: "r"(index)
 		: "memory");
 }
-__always_inline__ void Bit_set0(u64 *addr, u64 index) {
+static __always_inline__ void Bit_set0(u64 *addr, u64 index) {
 	__asm__ volatile (
 		"btrq %1, %0		\n\t"
 		: "+m"(*addr)
 		: "r"(index)
 		: "memory");
 }
-__always_inline__ void Bit_rev(u64 *addr, u64 index) {
+static __always_inline__ void Bit_revBit(u64 *addr, u64 index) {
     __asm__ volatile (
         "btcq %1, %0    \n\t"
         : "+m"(*addr)
@@ -65,6 +65,16 @@ __always_inline__ void Bit_rev(u64 *addr, u64 index) {
         : "memory"
     );
 }
+
+static __always_inline__ u32 Bit_rev32(u32 x) {
+    x = (((x & 0xaaaaaaaa) >> 1) | ((x & 0x55555555) << 1));
+    x = (((x & 0xcccccccc) >> 2) | ((x & 0x33333333) << 2));
+    x = (((x & 0xf0f0f0f0) >> 4) | ((x & 0x0f0f0f0f) << 4));
+    x = (((x & 0xff00ff00) >> 8) | ((x & 0x00ff00ff) << 8));
+    
+    return((x >> 16) | (x << 16));
+}
+
 // return 1-based index
 u32 Bit_ffs(u64 val);
 

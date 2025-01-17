@@ -35,8 +35,8 @@ int FS_GPT_scan(DiskDevice *device) {
 		for (int j = 0; j < 512 / sizeof(FS_GPT_PartitionEntry); j++) {
 			for (int k = 0; k < 36; k++) name[k] = entry[j].name[k << 1 | 1];
 			if (!entry[j].stLba) continue;
-			printk(WHITE, BLACK, "st:%20lu=%#018lx ed:%20lu=%#018lx attr=%#018lx name=%s\n",
-				entry[j].stLba, entry[j].stLba, entry[j].edLba, entry[j].edLba, entry[j].attr, name);
+			printk(WHITE, BLACK, "st:%20lu ed:%20lu attr=%#018lx name=%s\n",
+				entry[j].stLba, entry[j].edLba, entry[j].attr, name);
 			FS_Part *parition = kmalloc(sizeof(FS_Part), Slab_Flag_Clear, NULL);
 			parition->st = entry[j].stLba, parition->ed = entry[j].edLba;
 			parition->device = device;
@@ -45,4 +45,23 @@ int FS_GPT_scan(DiskDevice *device) {
 	}
 	kfree(lba, 0);
 	return 0;
+}
+
+static void _initHdr(DiskDevice *device, FS_GPT_Header *hdr) {
+	memcpy("EFI PART", hdr->signature, sizeof(hdr->signature));
+	hdr->revision = 0x010000;
+	hdr->hdrSize = sizeof(FS_GPT_Header);
+	hdr->chksum = 0;
+	hdr->reserved = 0;
+	hdr->lba = 1;
+	hdr->alterLba = device->size / DiskDevice_LbaSize;
+	hdr->firLba = 0x22;
+	hdr->lstLba = device->size / DiskDevice_LbaSize - 0x22;
+	
+}
+
+int FS_GPT_init(DiskDevice *device) {
+	void *lba = kmalloc(512, Slab_Flag_Clear, NULL);
+	_initHdr(device, lba);
+
 }

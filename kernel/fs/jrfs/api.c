@@ -73,6 +73,8 @@ int FS_JRFS_mkfs(FS_Part *partition) {
 	}
 	kfree(lbas, 0);
 	kfree(rootDesc, 0);
+
+	partition->mgr->updInfo(partition->mgr, partition);
 	return 0;
 }
 
@@ -346,7 +348,7 @@ static __always_inline__ FS_JRFS_DirNode *_getDirNode(FS_JRFS_Mgr *mgr, u64 pgId
 // search for a directory entry with hash value HS in a specific directory, whose header if HDR
 static FS_JRFS_PgCache *_searchDirEntry(FS_JRFS_Mgr *mgr, FS_JRFS_EntryHdr *hdr, u64 hs) {
 	FS_JRFS_PgCache *cache = container(hdr, FS_JRFS_PgCache, entryHdr);
-	if (!(hdr->attr & FS_JRFS_FileHdr_attr_isDir)) return NULL;
+	if (!(hdr->attr & FS_JRFS_EntryHdr_attr_isDir)) return NULL;
 	FS_JRFS_DirNode *node = &cache->dirEntry.rootNode;
 	while (node) {
 		u64 dig = (hs >> (node->dep << 3)) & 0xfful;
@@ -375,15 +377,15 @@ static FS_JRFS_PgCache *_getDirEntry(FS_JRFS_Mgr *mgr, u8 *path, u64 pathLen) {
 
 static FS_JRFS_File *_openFile(FS_JRFS_Mgr *mgr, u8 *path) {
 	FS_JRFS_PgCache *curEntry = _getDirEntry(mgr, path, 0);
-	if (!curEntry || curEntry->entryHdr.attr & FS_JRFS_FileHdr_attr_isDir) {
+	if (!curEntry || curEntry->entryHdr.attr & FS_JRFS_EntryHdr_attr_isDir) {
 		printk(WHITE, BLACK, "JRFS: %#018lx: file %s does not exist.\n", mgr, path);
 		return NULL;
 	}
 	// make a file structure
 	FS_JRFS_File *file = kmalloc(sizeof(FS_JRFS_File), Slab_Flag_Clear, NULL);
-	curEntry->entryHdr.attr |= FS_JRFS_FileHdr_attr_isOpen;
+	curEntry->entryHdr.attr |= FS_JRFS_EntryHdr_attr_isOpen;
 	if (_accPgCache(mgr, curEntry)) { kfree(file, 0); return NULL; };
-	memcpy(&curEntry, &file->hdr, sizeof(FS_JRFS_EntryHdr));
+	memcpy(&curEntry->entryHdr, &file->hdr, sizeof(FS_JRFS_EntryHdr));
 
 	file->opPgId = file->grpHdrId = curEntry->pgId;
 	file->off = sizeof(FS_JRFS_EntryHdr);
@@ -398,11 +400,19 @@ static FS_JRFS_File *_openFile(FS_JRFS_Mgr *mgr, u8 *path) {
 
 static FS_JRFS_Dir *_openDir(FS_JRFS_Mgr *mgr, u8 *path) {
 	FS_JRFS_PgCache *curEntry = _getDirEntry(mgr, path, 0);
-	if (!curEntry || (~curEntry->entryHdr.attr & FS_JRFS_FileHdr_attr_isDir)) {
+	if (!curEntry || (~curEntry->entryHdr.attr & FS_JRFS_EntryHdr_attr_isDir)) {
 		printk(WHITE, BLACK, "JRFS: %#018lx: directory %s does not exists.\n", mgr, path);
 		return NULL;
 	}
-	FS_JRFS_PgCache *
+	FS_JRFS_Dir *dir = kmalloc(sizeof(FS_JRFS_Dir), Slab_Flag_Clear, NULL);
+	curEntry->entryHdr.attr |= FS_JRFS_EntryHdr_attr_isOpen;
+	if (!_accPgCache(mgr, curEntry)) { kfree(dir, 0); return NULL; }
+	memcpy(&curEntry->entryHdr, &dir->hdr, sizeof(FS_JRFS_EntryHdr));
+	dir->mgr = mgr;
+	dir->curEntryId = curEntry->entryHdr.firEntryPgId;
+	dir->dir.nextEntry = FS_JRFS_nextEntry;
+	dir->dir.closeDir = FS_JRFS_closeDir;
+	return dir;
 }
 
 static int _linkEntry(FS_JRFS_Mgr *mgr, u64 dirEntryPgId, u64 subEntryPgId, u8 *name, u64 len, u64 hs) {
@@ -411,11 +421,43 @@ static int _linkEntry(FS_JRFS_Mgr *mgr, u64 dirEntryPgId, u64 subEntryPgId, u8 *
 	FS_JRFS_DirNode *curNd = &curPg->dirEntry.rootNode;
 	{
 		FS_JRFS_EntryHdr *dirHdr = &curPg->entryHdr;
-		if (~dirHdr->attr & FS_JRFS_FileHdr_attr_isDir) {
+		if (~dirHdr->attr & FS_JRFS_EntryHdr_attr_isDir) {
 			printk(RED, BLACK, "JRFS: %#018lx: failed to link directory from %#018lx to %#018lx. %#018lx is not directory.\n", mgr, dirEntryPgId, dirEntryPgId);
 			return -1;
 		}
 		dirHdr->subEntryNum++;
+		if (!dirHdr->firEntryPgId) {
+			dirHdr->firEntryPgId = subEntryPgId;
+			_accPgCache(mgr, curPg);
+
+			// element->prev = element->next = element;
+			FS_JRFS_PgCache *tmp = _getPgCache(mgr, subEntryPgId);
+			tmp->entryHdr.lstEntryPgId = tmp->entryHdr.nxtEntryPgId = subEntryPgId;
+			_accPgCache(mgr, tmp);
+
+			curPg = _getPgCache(mgr, dirEntryPgId);
+		} else {
+			// insert this entry before the "first entry" of directory, 
+			u64 lstEntry;
+			// pos->prev = element
+			FS_JRFS_PgCache *tmp = _getPgCache(mgr, dirHdr->firEntryPgId);
+			lstEntry = tmp->entryHdr.lstEntryPgId;
+			tmp->entryHdr.lstEntryPgId = subEntryPgId;
+			_accPgCache(mgr, tmp);
+
+			// pos->prev->next = element
+			tmp = _getPgCache(mgr, lstEntry);
+			tmp->entryHdr.nxtEntryPgId = subEntryPgId;
+			_accPgCache(mgr, tmp);
+
+			// element->prev = pos->prev
+			// element->next = pos
+			tmp = _getPgCache(mgr, subEntryPgId);
+			tmp->entryHdr.lstEntryPgId = lstEntry;
+			tmp->entryHdr.nxtEntryPgId = dirHdr->firEntryPgId;
+			
+			curPg = _getPgCache(mgr, dirEntryPgId);
+		}
 		_accPgCache(mgr, curPg);
 	}
 	while (1) {
@@ -476,18 +518,44 @@ static int _linkEntry(FS_JRFS_Mgr *mgr, u64 dirEntryPgId, u64 subEntryPgId, u8 *
 	return 0;
 }
 
-static int _disLinkEntry(FS_JRFS_Mgr *mgr, u64 dirEntryPgId, u64 hs) {
+static int _disLinkEntry(FS_JRFS_Mgr *mgr, u64 dirEntryPgId, u64 subEntryPgId) {
+	u64 hs, lstEntry, nxtEntry;
+	{
+		FS_JRFS_PgCache *tmp = _getPgCache(mgr, subEntryPgId);
+		hs = tmp->entryHdr.nameHash;
+		lstEntry = tmp->entryHdr.lstEntryPgId;
+		nxtEntry = tmp->entryHdr.nxtEntryPgId;
+	}
 	FS_JRFS_PgCache *curPg = _getPgCache(mgr, dirEntryPgId);
 	FS_JRFS_DirNode *curNd = &curPg->dirEntry.rootNode;
 	u8 index; u64 curPgId = dirEntryPgId;
 	{
 		FS_JRFS_EntryHdr *hdr = &curPg->entryHdr;
-		if (~hdr->attr & FS_JRFS_FileHdr_attr_isDir) {
+		if (~hdr->attr & FS_JRFS_EntryHdr_attr_isDir) {
 			printk(RED, BLACK, "JRFS: %#018lx: failed to dislink entry with hash %#018lx from %#018lx. %#018lx is not directory\n.", mgr, hs, dirEntryPgId, dirEntryPgId);
 			return -1;
 		}
 		hdr->subEntryNum--;
+
+		if (hdr->firEntryPgId == subEntryPgId) {
+			if (!hdr->subEntryNum) hdr->firEntryPgId = 0;
+			else hdr->firEntryPgId = lstEntry;
+		}
 		_accPgCache(mgr, curPg);
+
+		// delete node
+		if (hdr->subEntryNum) {
+			// element->prev->next = element->next
+			FS_JRFS_PgCache *tmp = _getPgCache(mgr, lstEntry);
+			tmp->entryHdr.nxtEntryPgId = nxtEntry;
+			_accPgCache(mgr, tmp);
+			// element->next->prev = element->prev
+			tmp = _getPgCache(mgr, nxtEntry);
+			tmp->entryHdr.lstEntryPgId = lstEntry;
+			_accPgCache(mgr, tmp);
+		}
+
+		curPg = _getPgCache(mgr, dirEntryPgId);
 	}
 	while (1) {
 		index = (hs >> (curNd->dep << 3)) & 0xff;
@@ -601,7 +669,7 @@ static int _mkDir(FS_JRFS_Mgr *mgr, u8 *path) {
 		FS_JRFS_EntryHdr *hdr = &cache->entryHdr;
 		memset(hdr, 0, sizeof(FS_JRFS_EntryHdr));
 		hdr->curPgId = pgId;
-		hdr->attr = FS_JRFS_FileHdr_attr_isDir;
+		hdr->attr = FS_JRFS_EntryHdr_attr_isDir;
 		hdr->parDirPgId = parPgId;
 	}
 	_accPgCache(mgr, cache);
@@ -625,11 +693,11 @@ static int _delFile(FS_JRFS_Mgr *mgr, u8 *path) {
 	// dislink the file from the parent directory
 	{
 		FS_JRFS_EntryHdr *hdr = &cache->entryHdr;
-		if (hdr->attr & FS_JRFS_FileHdr_attr_isOpen) {
+		if (hdr->attr & FS_JRFS_EntryHdr_attr_isOpen) {
 			printk(RED, BLACK, "JRFS: %#018lx: failed to delete file %s. it is open.\n", mgr, path);
 			return -1;
 		}
-		res |= _disLinkEntry(mgr, hdr->parDirPgId, hdr->nameHash);
+		res |= _disLinkEntry(mgr, hdr->parDirPgId, pgId);
 	}
 	res |= _freePgGrpList(mgr, pgId);
 	return res;
@@ -650,11 +718,11 @@ static int _delDir(FS_JRFS_Mgr *mgr, u8 *path) {
 			printk(RED, BLACK, "JRFS: %#018lx: failed to delete directory %s. Directory is not empty.\n", mgr, path);
 			return -1;
 		}
-		if (hdr->attr & FS_JRFS_FileHdr_attr_isOpen) {
+		if (hdr->attr & FS_JRFS_EntryHdr_attr_isOpen) {
 			printk(RED, BLACK, "JRFS: %#018lx: failed to delete directory %s. it is open.\n", mgr, path);
 			return -1;
 		}
-		res |= _disLinkEntry(mgr, hdr->parDirPgId, hdr->nameHash);
+		res |= _disLinkEntry(mgr, hdr->parDirPgId, cache->pgId);
 	}
 	res |= _freePgGrp(mgr, pgId);
 	return res;
@@ -745,11 +813,34 @@ static int _close(FS_JRFS_File *file) {
 	// write entry hdr back
 	FS_JRFS_PgCache *hdrCache = _getPgCache(file->mgr, file->hdr.curPgId);
 	if (!hdrCache) return -1;
-	file->hdr.attr &= ~FS_JRFS_FileHdr_attr_isOpen;
-	file->hdr.modiTime = 0;
-	memcpy(&file->hdr, &hdrCache->entryHdr, sizeof(FS_JRFS_EntryHdr));
+	hdrCache->entryHdr.attr &= ~FS_JRFS_EntryHdr_attr_isOpen;
+	hdrCache->entryHdr.modiTime = 0;
+	hdrCache->entryHdr.fileSz = file->hdr.fileSz;
+	hdrCache->entryHdr.filePgNum = file->hdr.filePgNum;
 	_accPgCache(file->mgr, hdrCache);
 	kfree(file, 0);
+	return 0;
+}
+
+static int _closeDir(FS_JRFS_Dir *dir) {
+	FS_JRFS_PgCache *hdrCache = _getPgCache(dir->mgr, dir->hdr.curPgId);
+	if (!hdrCache) return -1;
+	hdrCache->entryHdr.attr &= ~FS_JRFS_EntryHdr_attr_isOpen;
+	hdrCache->entryHdr.modiTime = 0;
+	_accPgCache(dir->mgr, hdrCache);
+	kfree(dir, 0);
+	return 0;
+}
+
+static int _nextEntry(FS_JRFS_Dir *dir, FS_DirEntry *entry) {
+	if (!dir->curEntryId) return -1;
+	u64 firPg = _getPgCache(dir->mgr, dir->hdr.curPgId)->entryHdr.firEntryPgId;
+	FS_JRFS_PgCache *entryPg = _getPgCache(dir->mgr, dir->curEntryId);
+	if (!entryPg) return -1;
+	entry->attr = 0;
+	memcpy(entryPg->entryHdr.name, entry->name, sizeof(u8) * FS_MaxFileNameLen);
+	dir->curEntryId = entryPg->entryHdr.nxtEntryPgId;
+	if (dir->curEntryId == firPg) dir->curEntryId = 0;
 	return 0;
 }
 
@@ -785,12 +876,36 @@ int FS_JRFS_close(FS_File *file) {
 	return res;
 }
 
+int FS_JRFS_nextEntry(FS_Dir *dir, FS_DirEntry *entry) {
+	FS_JRFS_Dir *jrfsDir = container(dir, FS_JRFS_Dir, dir);
+	SpinLock_lock(&jrfsDir->mgr->lock);
+	register int res = _nextEntry(jrfsDir, entry);
+	SpinLock_unlock(&jrfsDir->mgr->lock);
+	return res;
+}
+
+int FS_JRFS_closeDir(FS_Dir *dir) {
+	FS_JRFS_Dir *jrfsDir = container(dir, FS_JRFS_Dir, dir);
+	SpinLock_lock(&jrfsDir->mgr->lock);
+	register int res = _closeDir(jrfsDir);
+	SpinLock_unlock(&jrfsDir->mgr->lock);
+	return res;
+}
+
 FS_File *FS_JRFS_openFile(FS_Part *par, u32 uid, u8 *path) {
 	FS_JRFS_Mgr *mgr = container(par, FS_JRFS_Mgr, partition);
 	SpinLock_lock(&mgr->lock);
 	FS_JRFS_File *jrfsFile = _openFile(mgr, path);
 	SpinLock_unlock(&mgr->lock);
 	return &jrfsFile->file;
+}
+
+FS_Dir 	*FS_JRFS_openDir(FS_Part *par, u32 uid, u8 *path) {
+	FS_JRFS_Mgr *mgr = container(par, FS_JRFS_Mgr, partition);
+	SpinLock_lock(&mgr->lock);
+	FS_JRFS_Dir *jrfsDir = _openDir(mgr, path);
+	SpinLock_unlock(&mgr->lock);
+	return &jrfsDir->dir;
 }
 
 int FS_JRFS_loadfs(FS_Part *part) {
@@ -804,6 +919,7 @@ int FS_JRFS_loadfs(FS_Part *part) {
 	SpinLock_init(&mgr->lock);
 
 	mgr->partition.openFile = FS_JRFS_openFile;
+	mgr->partition.openDir = FS_JRFS_openDir;
 
 	FS_registerPart(&mgr->partition);
 

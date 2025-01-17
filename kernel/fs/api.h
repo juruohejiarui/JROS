@@ -5,6 +5,7 @@
 #include "../includes/memory.h"
 #include "../hardware/diskdevice.h"
 
+#define FS_MaxFileNameLen	128
 struct FS_DirEntry;
 
 typedef struct FS_File {
@@ -16,20 +17,19 @@ typedef struct FS_File {
 	// read SZ bytes to file and move this->opPtr to opPtr + sz
 	int (*read)(struct FS_File *file, void *buf, u64 sz);
 	int (*close)(struct FS_File *file);
-	u8 name[128];
+	u8 name[FS_MaxFileNameLen];
 } FS_File;
 
-typedef struct FS_Dir {
-	int (*nextEntry)(struct FS_Dir *dir);
-	int (*closeDir)(struct FS_Dir *dir);
-	u8 name[128];
-} FS_Dir;
-
 typedef struct FS_DirEntry {
-	int entryType;
-	u8 name[128];
-	u64 nameLen;
+	u64 attr;
+	u8 name[FS_MaxFileNameLen];
 } FS_DirEntry;
+
+typedef struct FS_Dir {
+	int (*nextEntry)(struct FS_Dir *dir, FS_DirEntry *dirEntry);
+	int (*closeDir)(struct FS_Dir *dir);
+	u8 name[FS_MaxFileNameLen];
+} FS_Dir;
 
 struct FS_Part;
 

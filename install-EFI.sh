@@ -1,8 +1,6 @@
 #!/bin/bash
 RED_COLOR='\E[1;31m'
 RESET='\E[0m'
-# GOAL_DISK="/dev/sdd1"
-GOAL_DISK="/dev/loop1p1"
 
 
 echo -e "${RED_COLOR}=== gen kernel.bin ===${RESET}"
@@ -12,7 +10,7 @@ if [ $? -ne 0 ]; then
     echo -e "${RED_COLOR}==rely analysis failed!==${RESET}"
     cd ../
 else 
-    make all
+    make -j$(nproc) all
 
     if [ $? -ne 0 ]; then
         echo -e "${RED_COLOR}==kernel make failed!Please checkout first!==${RESET}"

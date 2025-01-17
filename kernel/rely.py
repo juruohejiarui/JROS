@@ -1,4 +1,5 @@
 import os
+import sys
 
 rely : dict = {}
 eleDict : dict = {}
@@ -65,11 +66,11 @@ def main() :
             outputRely(path)
             outFile.write('\n')
             if path.endswith('.c') :
-                outFile.write('\t@$(CC) $(CFLAGS) -c ' + f"{path} -o {path[0 : -2]}.o \n")
+                outFile.write('\t@$(CC) $(CFLAGS) $(CFLAGS_ARCH) -c ' + f"{path} -o {path[0 : -2]}.o \n")
                 outFile.write(f'\t@echo \"[CC] {path}" \n\n')
             else :
-                outFile.write('\t@$(CC) -E ' + f"{path} > " + f"{path[0 : -2]}.s\n")
-                outFile.write('\t@$(ASM) $(ASMFLAG) -o ' + f"{path[0 : -2]}.o {path[0 : -2]}.s\n")
+                outFile.write('\t@$(CC) -E ' + f"{path} > " + f"{path[0 : -2]}.STMP\n")
+                outFile.write('\t@$(ASM) $(ASMFLAG) -o ' + f"{path[0 : -2]}.o {path[0 : -2]}.STMP\n")
                 outFile.write(f'\t@echo \"[AS] {path}\" \n\n')
     objList : str = ''
     for objFile in objFiles : 

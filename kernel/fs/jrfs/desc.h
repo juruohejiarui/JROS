@@ -52,11 +52,11 @@ typedef struct FS_JRFS_EntryHdr {
 	#define FS_JRFS_FileHdr_accFlag_ReadWrite	FS_JRFS_FileHdr_accFlag_Write | FS_JRFS_FileHdr_accFlag_Read
 	u32 attr;
 	u64 curPgId;
-	#define FS_JRFS_FileHdr_attr_isExist	(1ul << 0)
-	#define FS_JRFS_FileHdr_attr_isDir		(1ul << 1)
-	#define FS_JRFS_FileHdr_attr_isSys		(1ul << 2)
-	#define FS_JRFS_FileHdr_attr_isSoft		(1ul << 3)
-	#define FS_JRFS_FileHdr_attr_isOpen		(1ul << 4)
+	#define FS_JRFS_EntryHdr_attr_isExist	(1ul << 0)
+	#define FS_JRFS_EntryHdr_attr_isDir		(1ul << 1)
+	#define FS_JRFS_EntryHdr_attr_isSys		(1ul << 2)
+	#define FS_JRFS_EntryHdr_attr_isSoft		(1ul << 3)
+	#define FS_JRFS_EntryHdr_attr_isOpen		(1ul << 4)
 	u64 nameHash;
 	u8 name[128];
 	union {
@@ -66,8 +66,11 @@ typedef struct FS_JRFS_EntryHdr {
 		};
 		struct {
 			u64 subEntryNum;
+			u64 firEntryPgId;
 		};
 	};
+	u64 lstEntryPgId;
+	u64 nxtEntryPgId;
 	u64 parDirPgId;
 } __attribute__ ((packed)) FS_JRFS_EntryHdr;
 

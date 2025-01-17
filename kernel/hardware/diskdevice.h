@@ -20,6 +20,8 @@ typedef struct DiskDevice {
 
 	int (*init)(struct DiskDevice *device);
 
+	u64 size;
+
 	List listEle;
 } DiskDevice;
 

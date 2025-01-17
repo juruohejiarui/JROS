@@ -3,6 +3,9 @@
 
 #include "../../includes/lib.h"
 
+#define FS_GPT_HeaderOffset 512
+#define FS_GPT_PartitionEntryOffset
+
 typedef struct FS_GPT_Header {
     u8 signature[8];
     u32 revision;

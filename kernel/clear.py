@@ -1,7 +1,7 @@
 import sys
 import os
 
-suffixs = ['.s', '.o']
+suffixs = ['.STMP', '.o']
 def scanDir(path : str) :
 	files = os.listdir(path)
 	flag = [False for _ in range(len(suffixs))]

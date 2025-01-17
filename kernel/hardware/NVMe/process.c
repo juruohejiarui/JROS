@@ -246,6 +246,8 @@ NVMe_Host *HW_NVMe_initDevice(PCIeConfig *pciCfg) {
 			nsp->sz = desc->size;
 			nsp->cap = desc->cap;
 
+			nsp->device.size = nsp->cap;
+
 			// make create completion queue command, submission queue command
 			HW_NVMe_mkSubmEntry_NewCmpl(&req.entry, &nsp->cmplQue, i + 1);
 			res = HW_NVMe_insReqWait(host, &host->adminSubmQue, &req);
