@@ -21,14 +21,15 @@ i32 log2Ceil(u64 n);
 
 #define BKDRHash(x, ch) ((x) * 31 + (ch))
 
-#define CRC32Init() (~0ul)
+#define CRC32Init() (~0U)
 
 #define CRC32Embed(crc32, dt) ({ \
-    __typedef__(crc32) t; \
+    __typeof__(crc32) t; \
     __asm__ volatile ( \
         "crc32 %1, %0   \n\t" \
         : "=r"(t) \
         : "r"(dt), "0"(crc32) \
+        : "memory" \
     ); \
     t; \
 })

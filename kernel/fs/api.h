@@ -35,18 +35,23 @@ struct FS_Part;
 
 typedef struct FS_PartMgr {
 	DiskDevice *device;
+	SpinLock lock;
 	int (*delPart)(struct FS_PartMgr *mgr, struct FS_Part *part);
 	int (*addPart)(struct FS_PartMgr *mgr, u64 stLba, u64 edLba, u8 *parTypeGuid, u8 *uniGuid, char *name);
 	int (*extPart)(struct FS_PartMgr *mgr, struct FS_Part *part, u64 nwEdLba);
 	int (*updInfo)(struct FS_PartMgr *mgr, struct FS_Part *part);
 } FS_PartMgr;
 
+typedef struct FS_GUID {
+	u8 data[16];
+} __attribute__ ((packed)) FS_GUID;
+
 typedef struct FS_Part {
 	DiskDevice *device;
 	u64 st, ed; // start LBA and end LBA
 	FS_PartMgr *mgr;
 
-	u8 parTypeGuid[16], uniTypeGuid[16];
+	FS_GUID parTypeGuid, uniTypeGuid;
 	u8 name[72];
 	
 	List listEle;
@@ -84,4 +89,17 @@ static __always_inline__ int FS_writePage(FS_Part *part, void *buf, u64 pageOff,
 void FS_registerPart(FS_Part *part);
 void FS_unregisterPart(FS_Part *partition);
 void FS_init();
+
+static __always_inline__ int FS_chkGUID(FS_GUID *a, FS_GUID *b) { return memcmp(a->data, b->data, sizeof(u8) * 16); }
+
+static __always_inline__ void FS_setTypeGUID(FS_Part *part, FS_GUID *guid, int updInfo) {
+	memcpy(guid->data, part->uniTypeGuid.data, sizeof(u8) * 16);
+	if (updInfo && part->mgr->updInfo) part->mgr->updInfo(part->mgr, part);
+}
+
+static __always_inline__ void FS_setParTypeGUID(FS_Part *part, FS_GUID *guid, int updInfo) {
+	memcpy(guid->data, part->parTypeGuid.data, sizeof(u8) * 16);
+	if (updInfo && part->mgr->updInfo) part->mgr->updInfo(part->mgr, part);
+}
+
 #endif

@@ -3,6 +3,8 @@ LDFLAGS = -b elf64-x86-64 -b elf64-x86-64 -z muldefs --no-warn-rwx-segments -z n
 
 ARCH = $(shell uname -m)
 
+HOSTCC = gcc
+
 ifeq ($(ARCH),aarch64)
 CC = /usr/bin/x86_64-linux-gnu-gcc
 ASM = /usr/bin/x86_64-linux-gnu-as
@@ -34,7 +36,7 @@ system_tmp: $(ALLOBJS)
 	@echo "[LD] system_tmp"
 
 ../Tools/kallsyms.o: ../Tools/kallsyms.c system_tmp
-	@$(CC) $(CC_HEADER) -o ../Tools/kallsyms ../Tools/kallsyms.c
+	@$(HOSTCC) $(CC_HEADER) -o ../Tools/kallsyms ../Tools/kallsyms.c
 	@$(NM) -n system_tmp | ../Tools/kallsyms > ../Tools/kallsyms.S
 	@$(CC) -c ../Tools/kallsyms.S -o ../Tools/kallsyms.o -Wl,--no-warn-rwx-segments
 	@echo "[Multi] kallsyms.o"

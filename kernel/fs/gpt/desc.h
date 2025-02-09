@@ -2,6 +2,7 @@
 #define __FS_GPT_DESC_H__
 
 #include "../../includes/lib.h"
+#include "../api.h"
 
 #define FS_GPT_HeaderOffset 512
 #define FS_GPT_PartitionEntryOffset
@@ -25,12 +26,17 @@ typedef struct FS_GPT_Header {
 } __attribute__ ((packed)) FS_GPT_Header;
 
 typedef struct FS_GPT_PartitionEntry {
-    u8 parTypeGuid[16];
-    u8 uniParGuid[16];
+    FS_GUID parTypeGuid;
+    FS_GUID uniParGuid;
     u64 stLba;
     u64 edLba;
     u64 attr;
     u8 name[72];
 } __attribute__ ((packed)) FS_GPT_PartitionEntry;
+
+typedef struct FS_GPT_Mgr {
+    FS_PartMgr mgr;
+    FS_GPT_Header hdr;
+} FS_GPT_Mgr;
 
 #endif

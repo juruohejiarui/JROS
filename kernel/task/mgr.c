@@ -175,6 +175,10 @@ void Task_setSysSignalHandler(TaskStruct *task) {
 	Task_setSignalHandler(task, Task_Signal_Timer, (Task_SignalHandler)Task_SysSignal_Timer, 0);
 }
 
+static void _handleSignal() {
+
+}
+
 #pragma endregion
 
 #pragma region Task Timer

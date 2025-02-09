@@ -2,6 +2,13 @@
 #include "../../includes/memory.h"
 #include "../../includes/log.h"
 
+static FS_GUID _JRFS_guid;
+
+void FS_JRFS_init() {
+	memset(_JRFS_guid.data, 0, sizeof(u8) * 16);
+	_JRFS_guid.data[0] = 0xff;
+}
+
 int FS_JRFS_mkfs(FS_Part *partition) {
 	if (partition->ed - partition->st <= Page_1GSize / 512) {
 		printk(RED, BLACK, "JRFS: %#018lx: partition too small\n", partition);
@@ -74,7 +81,8 @@ int FS_JRFS_mkfs(FS_Part *partition) {
 	kfree(lbas, 0);
 	kfree(rootDesc, 0);
 
-	partition->mgr->updInfo(partition->mgr, partition);
+	FS_setTypeGUID(partition, &_JRFS_guid, 1);
+
 	return 0;
 }
 

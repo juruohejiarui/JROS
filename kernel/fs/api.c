@@ -1,4 +1,5 @@
 #include "api.h"
+#include "jrfs/api.h"
 
 List FS_partitionList;
 
@@ -12,4 +13,5 @@ void FS_unregisterPart(FS_Part *part) {
 
 void FS_init() {
 	List_init(&FS_partitionList);
+	FS_JRFS_init();
 }

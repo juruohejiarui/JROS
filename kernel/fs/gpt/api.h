@@ -6,4 +6,6 @@
 
 int FS_GPT_scan(DiskDevice *device);
 
+int FS_GPT_updParInfo(FS_PartMgr *mgr, FS_Part *part);
+
 #endif
