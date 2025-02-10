@@ -4,7 +4,7 @@
 #include "arch.h"
 
 #if defined(HAL_ARCH_AMD64)
-	#include "../amd64/init/init.h"
+	#include "../amd64/hardware/hardware.h"
 #elif defined(HAL_ARCH_ARM64)
 #endif
 
